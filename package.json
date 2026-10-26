@@ -1,0 +1,11 @@
+{
+  "name": "broadcast-etv",
+  "private": true,
+  "scripts": {
+    "render": "node tools/render.cjs",
+    "encode": "bash tools/encode.sh"
+  },
+  "devDependencies": {
+    "playwright": "^1.47.0"
+  }
+}

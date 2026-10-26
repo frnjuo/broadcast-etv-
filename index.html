@@ -1,0 +1,1371 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
+<title>Е ТВ Бродкаст-пакет</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;800&family=Golos+Text:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: аппаратная — 16:9 монитор, транспорт под ним, ниже монтажный лист, паспорт ролика и айдентика */
+:root{
+  --ink:#080A0F; --navy:#111722; --cyan:#00D9FF; --violet:#7A35FF;
+  --fg:#E6EEF8; --mute:#8792A6; --line:#1E2635; --hover:#161E2B;
+  --display:'Unbounded','Arial Black',system-ui,sans-serif;
+  --body:'Golos Text',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+  --accent:var(--cyan);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{background:var(--ink);color:var(--fg)}
+body{font-family:var(--body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+a{color:var(--cyan)}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
+.brand{display:flex;align-items:center;gap:14px;min-width:0}
+.mark{display:grid;place-items:center;width:52px;height:52px;background:var(--navy);border:1px solid var(--line);border-radius:4px;flex:none;color:var(--fg)}
+.mark svg{width:32px;height:auto}
+.logo-svg{display:block;fill:currentColor}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(20px,3vw,30px);line-height:1.1;margin:0;text-wrap:balance;letter-spacing:-.01em}
+.sub{margin:4px 0 0;color:var(--mute);font-size:14px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px}
+.tab{appearance:none;border:1px solid var(--line);background:var(--navy);color:var(--fg);font:600 13px/1 var(--body);padding:10px 12px;border-radius:3px;cursor:pointer;display:flex;gap:10px;align-items:center}
+.tab small{font-family:var(--mono);font-weight:400;color:var(--mute);font-size:11px}
+.tab[aria-selected="true"]{border-color:var(--accent);box-shadow:inset 0 -3px 0 var(--accent)}
+.tab:focus-visible,.btn:focus-visible,.tog input:focus-visible,.beat:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+
+#stage{position:relative;width:100%;aspect-ratio:16/9;max-width:100%;background:var(--ink);border:1px solid var(--line);overflow:hidden;container-type:inline-size}
+#gl{position:absolute;inset:0;width:100%;height:100%;display:block}
+.ov{position:absolute;inset:0;pointer-events:none}
+.bug{position:absolute;right:10%;top:5%;opacity:0;color:var(--cyan)}
+.bug svg{width:3.4cqw;height:auto}
+.cap{position:absolute;left:7.4%;bottom:17.2%;opacity:0;font:600 1.45cqw/1 var(--body);letter-spacing:.06em;color:#d3dbe6;text-shadow:0 0 .6cqw rgba(0,0,0,.6)}
+.safe{position:absolute;pointer-events:none;border:1px dashed rgba(230,238,248,.45)}
+.safe.a{inset:3.5%}
+.safe.g{inset:5% 10%;border-color:rgba(0,217,255,.6)}
+.safe span{position:absolute;left:4px;top:2px;font:400 10px/1.2 var(--mono);color:rgba(230,238,248,.7)}
+.safe.g span{color:rgba(0,217,255,.9)}
+.loading[hidden]{display:none}
+.loading{position:absolute;inset:0;display:grid;place-items:center;font:400 12px var(--mono);color:var(--mute);letter-spacing:.2em}
+
+.transport{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;background:var(--navy);border:1px solid var(--line);padding:10px 12px;border-radius:3px}
+.btn{appearance:none;border:1px solid var(--line);background:var(--hover);color:var(--fg);font:600 13px/1 var(--body);height:36px;padding:0 14px;border-radius:3px;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--ink);min-width:110px;justify-content:center}
+.tc{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:15px;letter-spacing:.04em;min-width:116px}
+.tc small{color:var(--mute);font-size:11px;display:block;letter-spacing:.1em}
+.scrub{flex:1 1 260px;position:relative;min-width:0;height:36px;display:flex;align-items:center}
+.scrub input{width:100%;accent-color:var(--accent);margin:0}
+.ticks{position:absolute;left:0;right:0;top:0;height:8px;pointer-events:none}
+.ticks i{position:absolute;top:0;width:2px;height:8px;background:var(--mute);transform:translateX(-1px)}
+.tog{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--mute);cursor:pointer;user-select:none}
+.tog input{accent-color:var(--accent);width:16px;height:16px;margin:0}
+
+.cols{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:18px}
+@media (max-width:820px){.cols{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--navy);border:1px solid var(--line);border-radius:3px;padding:18px;min-width:0}
+.card h2{font:800 12px/1 var(--display);letter-spacing:.18em;text-transform:uppercase;color:var(--mute);margin:0 0 14px}
+.beats{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.beat{display:grid;grid-template-columns:96px minmax(0,1fr);gap:12px;align-items:baseline;padding:8px 10px;border-radius:2px;cursor:pointer;width:100%;text-align:left;background:none;border:0;color:var(--fg);font:400 14px/1.45 var(--body)}
+.beat:hover{background:var(--hover)}
+.beat.on{background:var(--hover);box-shadow:inset 3px 0 0 var(--accent)}
+.beat code{font-family:var(--mono);font-size:12px;color:var(--accent);font-variant-numeric:tabular-nums}
+.concept p{margin:0 0 12px;max-width:62ch}
+.meta{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 16px;font-size:13px;margin:14px 0 16px}
+.meta dt{color:var(--mute);font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding-top:2px}
+.meta dd{margin:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:flex;align-items:center;gap:8px;font:400 11px var(--mono);color:var(--mute);border:1px solid var(--line);padding:5px 8px 5px 5px;border-radius:3px}
+.chip i{width:18px;height:18px;border-radius:2px;display:block;border:1px solid var(--line)}
+
+.ident{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:24px;align-items:start}
+@media (max-width:820px){.ident{grid-template-columns:minmax(0,1fr)}}
+.swatches{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.sw{display:grid;gap:6px;font:400 11px/1.3 var(--mono);color:var(--mute);align-content:start}
+.sw i{display:block;aspect-ratio:1;max-width:100%;border-radius:3px;border:1px solid var(--line)}
+.sw b{color:var(--fg);font-weight:600;font-size:12px}
+.logobox{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.logobox .tile{display:grid;place-items:center;width:104px;height:72px;border-radius:3px;border:1px solid var(--line)}
+.logobox .tile svg{width:60px}
+.logobox .tile.dark{background:var(--ink);color:var(--fg)}
+.logobox .tile.light{background:var(--fg);color:var(--ink)}
+.logobox .tile.cyan{background:var(--cyan);color:var(--ink)}
+.facts{margin:0;padding-left:18px;display:grid;gap:7px;font-size:14px}
+.facts li{max-width:68ch}
+.system p{margin:0 0 10px;max-width:72ch;font-size:14px}
+.system ul{margin:0;padding-left:18px;display:grid;gap:6px;font-size:14px}
+.src{font-size:12px;color:var(--mute);margin-top:12px;display:flex;flex-wrap:wrap;gap:4px 14px}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="mark" aria-hidden="true"><svg class="logo-svg" viewBox="-0.02 -0.57 1.64 1.14"><path d=""/></svg></div>
+      <div>
+        <h1>Е ТВ · 3D бродкаст-пакет</h1>
+        <p class="sub">Заставка канала и рубрики «Вердикт», «Гаджетотека» по 15 с, отбивка 5 с. Рендер в реальном времени, видео 1920×1080, 30 к/с.</p>
+      </div>
+    </div>
+    <div class="tabs" role="tablist" id="tabs"></div>
+  </header>
+
+  <div id="stage">
+    <canvas id="gl"></canvas>
+    <div class="ov" id="ov"></div>
+    <div class="safe a" id="safeA" hidden><span>ACTION SAFE 3,5%</span></div>
+    <div class="safe g" id="safeG" hidden><span>GRAPHICS SAFE · EBU R95</span></div>
+    <div class="loading" id="loading">ЗАГРУЗКА СЦЕНЫ…</div>
+  </div>
+
+  <div class="transport">
+    <button class="btn primary" id="play" type="button">▶ Пуск</button>
+    <button class="btn" id="restart" type="button">⟲ С начала</button>
+    <div class="tc" id="tc">00:00:00:00<small>ТАЙМКОД</small></div>
+    <div class="scrub"><div class="ticks" id="ticks"></div><input type="range" id="scrub" min="0" max="15" step="0.001" value="0" aria-label="Позиция"></div>
+    <label class="tog"><input type="checkbox" id="loop" checked><span>Повтор</span></label>
+    <label class="tog"><input type="checkbox" id="safe"><span>Безопасные зоны</span></label>
+    <button class="btn" id="fs" type="button">⛶ Полный экран</button>
+  </div>
+
+  <div class="cols">
+    <section class="card">
+      <h2>Монтажный лист</h2>
+      <ol class="beats" id="beats"></ol>
+    </section>
+    <section class="card concept">
+      <h2>Паспорт ролика</h2>
+      <div id="concept"></div>
+    </section>
+  </div>
+
+  <section class="card system">
+    <h2>Исследование: что делает бродкаст сильным</h2>
+    <p>Перед доработкой я разобрал кейсы мирового и российского эфирного дизайна и киберспортивных трансляций. Из них взяты шесть принципов, на которых теперь стоит пакет.</p>
+    <ul>
+      <li><b>Логотип — якорь всей системы.</b> Channel 4 собрал 25 айдентов разных режиссёров вокруг одного вращающегося логотипа. У нас каждая заставка канала и отбивка заканчивается сборкой знака E.</li>
+      <li><b>Тьма и свет как драматургия.</b> Netflix в 2019 году вывел знак на чёрный фон, «как в кинозале, где гаснет свет», и превратил ленту логотипа в неоновые лучи. У нас сцена начинается в полутьме и «загружается» светом, а все ключевые предметы обведены неоном.</li>
+      <li><b>Один фирменный приём, повторённый везде.</b> У Netflix это световые ленты, у СТС короткие межпрограммные заставки до 5 с на фирменных элементах. У нас это неоновый импульс, который бежит по линиям и включает предметы, и анаморфный блик на ударе.</li>
+      <li><b>Масштабируемая система, а не набор роликов.</b> Пакеты Worlds 2022 (Tendril) и LCS (Troika) построены как система, которая меняет настроение светом. У нас один стол и один набор модулей на все ролики, рубрики различаются акцентом: циан или фиолетовый.</li>
+      <li><b>Игровые ритуалы как культурный код.</b> Башни загрузочного экрана PS2 показывали историю игр с карты памяти и стали частью идентичности консоли. У нас есть PRESS START, полоса загрузки уровня, сканер PLAYER 1, шкала SCORE, комбо △ ○ ✕ □ и сноски на разобранном геймпаде.</li>
+      <li><b>Звук и точки удара.</b> Хороший айдент держится на звуке. В монтажном листе отмечены моменты для акцентов: нажатие, замок знака, удар печати, раскладка.</li>
+    </ul>
+    <div class="src">Источники:
+      <a href="https://www.dandad.org/work/annual-2024/behind-the-work/how-broadcaster-channel-4-depicted-a-nation-in-25-idents" target="_blank" rel="noopener">D&amp;AD · Channel 4</a>
+      <a href="https://creativebloq.com/news/netflix-channels-the-magic-of-the-cinema-in-new-ident" target="_blank" rel="noopener">Creative Bloq · Netflix</a>
+      <a href="https://imaginaryforces.com/project/netflix" target="_blank" rel="noopener">Imaginary Forces · Netflix</a>
+      <a href="https://hernanlindenbaum.myportfolio.com/riot-lol-worlds-2022" target="_blank" rel="noopener">Worlds 2022</a>
+      <a href="https://www.globenewswire.com/news-release/2021/04/28/2218760/0/en/Troika-and-Devlin-Design-Group-Partner-With-the-LCS-to-Launch-Their-New-Broadcast-Design.html" target="_blank" rel="noopener">Troika · LCS</a>
+      <a href="https://capacity.gg/project/esl-pro-league" target="_blank" rel="noopener">Capacity · ESL Pro League</a>
+      <a href="https://sostav.ru/publication/sts-obnovil-efirnoe-i-vneefirnoe-promo-82059.html" target="_blank" rel="noopener">Sostav · СТС</a>
+      <a href="https://www.sostav.ru/publication/match-40133.html" target="_blank" rel="noopener">Sostav · Матч ТВ</a>
+      <a href="https://www.sostav.ru/publication/tot-samyj-tnt-77871.html" target="_blank" rel="noopener">Sostav · ТНТ</a>
+      <a href="https://www.tcrf.net/PlayStation_2" target="_blank" rel="noopener">TCRF · PS2</a>
+    </div>
+  </section>
+
+  <section class="card system">
+    <h2>Система пакета</h2>
+    <p>Стилистика взята строго из референса Le Échiquier, кроме цвета и айдентики. Сцена — стол из крупных тонких плит разного размера с гравировкой и тонкими светлыми линиями. На нём стоят несколько крупных скульптурных модулей, лотки с матовым стеклом, ступени, по рёбрам которых бежит свет. Через каждый ролик проходит один акцентный предмет, как красный куб в референсе. Отбивка сделана отдельно по референсу Пятого канала: знак Е вырезан в металлическом полу, свет живёт в стенках выреза.</p>
+    <ul>
+      <li><b>Логика действия.</b> Каждое событие вызывает следующее. В заставке: свет на ступенях зажигает планку знака E, планка поднимает плиты стола, проходит сканер и замыкает знак. В «Вердикте»: скан игры, затем шкала рейтинга, затем заряд куба-печати и удар. В «Гаджетотеке»: выбор отсека, затем стекло, раскладка геймпада и пьедестал.</li>
+      <li><b>Ничего из ниоткуда.</b> Все предметы лежат на столе с первого кадра. Новое появляется только физически: поднимается из прорези, выезжает по дорожке или заезжает в кадр с края.</li>
+      <li><b>Одно пространство.</b> Каждый ролик снят на одном столе по одной временной шкале. При смене плана камера показывает ту же сцену с другой точки, прогресс не сбрасывается.</li>
+      <li><b>Материалы и неон.</b> Тёмные атласные плиты и модули в тонах #111722 и #080A0F, матовое стекло со штриховкой и HUD-подписями, сталь. Ключевые предметы, кнопки, рамки лотков и часть швов стола обведены неоновыми трубками, акцентный цвет загорается только на главном предмете.</li>
+      <li><b>Свет и оптика.</b> Низкое боковое солнце даёт длинные мягкие тени, малая глубина резкости, финальные кадры сняты строго сверху, без перспективы. Титры — два слова, которые въезжают навстречу друг другу, между ними прочерчивается линия, как в финале референса.</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>Айдентика Е ТВ</h2>
+    <div class="ident">
+      <div>
+        <div class="logobox">
+          <div class="tile dark"><svg class="logo-svg" viewBox="-0.02 -0.57 1.64 1.14"><path d=""/></svg></div>
+          <div class="tile light"><svg class="logo-svg" viewBox="-0.02 -0.57 1.64 1.14"><path d=""/></svg></div>
+          <div class="tile cyan"><svg class="logo-svg" viewBox="-0.02 -0.57 1.64 1.14"><path d=""/></svg></div>
+        </div>
+        <div class="swatches">
+          <div class="sw"><i style="background:#080A0F"></i><b>#080A0F</b>Фон, туман, тени</div>
+          <div class="sw"><i style="background:#111722"></i><b>#111722</b>Основные модули</div>
+          <div class="sw"><i style="background:#00D9FF"></i><b>#00D9FF</b>Акцентные панели, «Гаджетотека»</div>
+          <div class="sw"><i style="background:#7A35FF"></i><b>#7A35FF</b>Акцент «Вердикта»</div>
+        </div>
+      </div>
+      <div>
+        <ul class="facts">
+          <li>Канал вышел в эфир 1 декабря 2015 года как Game Show. 8 февраля 2018 года его переименовали в «E», в программах передач сейчас он значится как E TV.</li>
+          <li>Новое название объяснили четырьмя направлениями на букву E: e-sports, entertainment, education, energy. Поэтому заставка построена вокруг буквы E, а направления стоят подписью в финале.</li>
+          <li>Канал входит в холдинг E Terra вместе с турнирным оператором E Terra Play и студией E Terra Studio.</li>
+          <li>«Вердикт» — обзоры новых игр: плюсы, минусы, сюжет. «Гаджетотека» — необычные гаджеты, придуманные человечеством.</li>
+        </ul>
+        <div class="src">Источники:
+          <a href="https://adindex.ru/news/media/2018/02/8/169151.phtml" target="_blank" rel="noopener">AdIndex, 2018</a>
+          <a href="https://www.championat.com/cybersport/news-3328613-telekanal-game-show-smenil-nazvanie.html" target="_blank" rel="noopener">Чемпионат</a>
+          <a href="https://cyclowiki.org/wiki/E_(%D1%82%D0%B5%D0%BB%D0%B5%D0%BA%D0%B0%D0%BD%D0%B0%D0%BB)" target="_blank" rel="noopener">Циклопедия</a>
+          <a href="https://spbtvsolutions.ru/case-studies/eterra.html" target="_blank" rel="noopener">SPB TV · ETerra</a>
+          <a href="https://tv.yandex.ru/1091/channels/1676" target="_blank" rel="noopener">Яндекс Телепрограмма</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/polygon-clipping@0.15.7/dist/polygon-clipping.umd.min.js"></script>
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import opentype from 'three/addons/libs/opentype.module.js';
+
+/* ---------- utils ---------- */
+const rng = s => () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const lerp = (a, b, k) => a + (b - a) * k;
+const pick = (r, a) => a[Math.floor(r() * a.length)];
+const E = {
+  outCubic: k => 1 - Math.pow(1 - k, 3),
+  inCubic: k => k * k * k,
+  inOutCubic: k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2,
+  outExpo: k => k >= 1 ? 1 : 1 - Math.pow(2, -10 * k),
+  outBack: k => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(k - 1, 3) + c1 * Math.pow(k - 1, 2); },
+};
+const sine = k => .5 - Math.cos(k * Math.PI) / 2;
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+// фирменные цвета Е ТВ + нейтральный «лёд» для керамических деталей
+const C = { ink: 0x080a0f, navy: 0x111722, cyan: 0x00d9ff, violet: 0x7a35ff, ice: 0xc9d2de };
+
+/* ---------- знак E ---------- */
+const LG = { W: 1.6, H: 1.1, t: .2, R: .4, m: .09, Wm: 1.5 };
+function logoShape() {
+  const { W, H, t, R, m, Wm } = LG, h = H / 2, c = h - R, r = R - t, s = new THREE.Shape();
+  s.moveTo(W, h); s.lineTo(R, h); s.absarc(R, c, R, Math.PI / 2, Math.PI, false);
+  s.lineTo(0, -c); s.absarc(R, -c, R, Math.PI, Math.PI * 1.5, false);
+  s.lineTo(W, -h); s.lineTo(W, -h + t); s.lineTo(R, -h + t);
+  s.absarc(R, -c, r, Math.PI * 1.5, Math.PI, true);
+  s.lineTo(t, -m); s.lineTo(Wm, -m); s.lineTo(Wm, m); s.lineTo(t, m); s.lineTo(t, c);
+  s.absarc(R, c, r, Math.PI, Math.PI / 2, true);
+  s.lineTo(W, h - t); s.lineTo(W, h);
+  return s;
+}
+const LOGO_PTS = logoShape().getPoints(16);
+const LOGO_D = 'M' + LOGO_PTS.map(p => `${p.x.toFixed(4)},${(-p.y).toFixed(4)}`).join('L') + 'Z';
+const LOGO_SVG = `<svg class="logo-svg" viewBox="-0.02 -0.57 1.64 1.14"><path d="${LOGO_D}"/></svg>`;
+document.querySelectorAll('.logo-svg path').forEach(p => p.setAttribute('d', LOGO_D));
+
+/* ---------- renderer ---------- */
+const stageEl = document.getElementById('stage');
+const canvas = document.getElementById('gl');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = .9;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.VSMShadowMap;
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envTex = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+
+const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1280, 720, { type: THREE.HalfFloatType, samples: 4 }));
+const renderPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera());
+const bokeh = new BokehPass(new THREE.Scene(), new THREE.PerspectiveCamera(), { focus: 10, aperture: .004, maxblur: .005 });
+const bloom = new UnrealBloomPass(new THREE.Vector2(1280, 720), .42, .45, .96);
+composer.addPass(renderPass); composer.addPass(bokeh); composer.addPass(bloom); composer.addPass(new OutputPass());
+
+/* ---------- materials: пластика референса в палитре Е ТВ ---------- */
+renderer.localClippingEnabled = true;
+const phys = o => new THREE.MeshPhysicalMaterial({ envMapIntensity: .45, ...o });
+const MAT = {
+  base: phys({ color: 0x121a29, roughness: .84, metalness: .02, envMapIntensity: .25 }),
+  base2: phys({ color: 0x172134, roughness: .8, metalness: .02, envMapIntensity: .28 }),
+  deep: phys({ color: 0x07090f, roughness: .72, metalness: .05, envMapIntensity: .3 }),
+  satin: phys({ color: 0x1d2842, roughness: .62, metalness: .05, clearcoat: .08, clearcoatRoughness: .5, envMapIntensity: .35 }),
+  steel: phys({ color: 0x8e9bb0, roughness: .48, metalness: .8 }),
+  ice: phys({ color: C.ice, roughness: .58, clearcoat: .1, clearcoatRoughness: .5 }),
+  frost: phys({ color: 0xbcd0e6, roughness: .3, transparent: true, opacity: .62, depthWrite: false, envMapIntensity: 1 }),
+  cyan: phys({ color: C.cyan, emissive: C.cyan, emissiveIntensity: .45, roughness: .32, clearcoat: .6 }),
+  violet: phys({ color: C.violet, emissive: C.violet, emissiveIntensity: .55, roughness: .32, clearcoat: .6 }),
+};
+const gloss = (c, r = .5) => phys({ color: c, roughness: Math.max(r, .45), clearcoat: .15, clearcoatRoughness: .45 });
+const glow = (c, k = 1, o = {}) => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(k), toneMapped: false, ...o });
+
+/* ---------- текстуры: гравировка, перфорация, тонкие HUD-линии, стекло ---------- */
+function cnv(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; }
+const MONO = '"JetBrains Mono", ui-monospace, monospace';
+function engrave(g, path) { g.save(); g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.5)'; path(); g.stroke(); g.translate(0, 2.2); g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,.1)'; path(); g.stroke(); g.restore(); }
+const rr = (g, x, y, w, h, r) => () => { g.beginPath(); g.roundRect(x, y, w, h, r); };
+function hudLine(g, x0, x1, y, label, a = .6) {
+  const col = `rgba(230,238,248,${a})`; g.fillStyle = col; g.strokeStyle = col; g.lineWidth = 2.5;
+  const L = x1 - x0; g.beginPath(); g.moveTo(x0, y); g.lineTo(x0 + L * .55, y); g.stroke();
+  [.6, .64, .68].forEach(f => { g.beginPath(); g.arc(x0 + L * f, y, 3.5, 0, 7); g.fill(); });
+  g.fillRect(x0 + L * .74, y - 2, L * .2, 4);
+  if (label) { g.font = `600 26px ${MONO}`; g.fillText(label, x0, y - 16); }
+}
+function icon(g, k, cx, cy, s) {
+  g.save(); g.translate(cx, cy); g.scale(s, s); g.lineWidth = g.lineWidth / s; g.lineJoin = g.lineCap = 'round';
+  const P = new Path2D();
+  if (k === 'check') { P.moveTo(-.75, 0); P.lineTo(-.2, .55); P.lineTo(.8, -.6); }
+  if (k === 'gamepad') { P.roundRect(-1, -.45, 2, .72, .36); P.ellipse(-.74, .25, .32, .5, .55, 0, 7); P.ellipse(.74, .25, .32, .5, -.55, 0, 7); }
+  if (k === 'e') { const pts = LOGO_PTS; P.moveTo(pts[0].x - .8, -pts[0].y); pts.slice(1).forEach(p => P.lineTo(p.x - .8, -p.y)); P.closePath(); }
+  g.stroke(P); g.restore();
+}
+const TX = {}, HUDS = ['P1', 'LV 07', 'XP 1200', 'A1 B3', 'HP 100', 'SAVE 02', 'E2 E4', 'START', 'COMBO x4'];
+function decalTex(type, aq, label) {
+  const key = `${type}|${aq}|${label || ''}`; if (TX[key]) return TX[key];
+  const W = Math.round(512 * Math.max(aq, 1)), H = Math.round(512 * Math.max(1 / aq, 1)), m = 24, R = Math.min(W, H) * .14;
+  const D = {
+    rings: g => { for (let i = 0; i < 7; i++) { const k = 40 + i * 20; engrave(g, rr(g, k, k, W - 2 * k, H - 2 * k, Math.max(10, Math.min(W, H) * .24 - i * 12))); } },
+    dots: g => { engrave(g, rr(g, m, m, W - 2 * m, H - 2 * m, R)); for (let x = m + 44; x < W - m - 30; x += 28) for (let y = m + 44; y < H - m - 30; y += 28) { g.fillStyle = 'rgba(0,0,0,.55)'; g.beginPath(); g.arc(x, y, 5, 0, 7); g.fill(); g.fillStyle = 'rgba(255,255,255,.12)'; g.beginPath(); g.arc(x, y + 2.4, 2.8, 0, Math.PI); g.fill(); } },
+    lines: g => { g.save(); rr(g, m, m, W - 2 * m, H - 2 * m, R)(); g.clip(); g.strokeStyle = 'rgba(255,255,255,.06)'; g.lineWidth = 2; for (let x = -H; x < W + H; x += 11) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x + H, H); g.stroke(); } g.restore(); engrave(g, rr(g, m, m, W - 2 * m, H - 2 * m, R)); },
+    hud: g => { engrave(g, rr(g, m, m, W - 2 * m, H - 2 * m, R)); hudLine(g, 56, W - 60, H - 58, label); },
+    frame: g => engrave(g, rr(g, m, m, W - 2 * m, H - 2 * m, R)),
+    screen: g => { g.fillStyle = 'rgba(255,255,255,.2)'; for (let x = 70; x < W - 60; x += 28) for (let y = 70; y < H - 60; y += 28) { g.beginPath(); g.arc(x, y, 3, 0, 7); g.fill(); } g.strokeStyle = 'rgba(255,255,255,.92)'; g.lineWidth = 9; icon(g, label, W / 2, H / 2 - 10, Math.min(W, H) * .22); hudLine(g, 60, W - 60, H - 52, 'E2 E4', .85); },
+    glass: g => { g.fillStyle = 'rgba(150,172,204,.34)'; rr(g, 4, 4, W - 8, H - 8, R)(); g.fill(); g.save(); g.clip(); g.strokeStyle = 'rgba(255,255,255,.1)'; g.lineWidth = 2; for (let x = -H; x < W + H; x += 9) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x + H, H); g.stroke(); } g.restore(); hudLine(g, 50, W - 50, 60, label || 'P1  SAVE 02', .8); },
+  };
+  return TX[key] = cnv(W, H, D[type]);
+}
+const DM = {};
+function decalMat(type, aq, label) {
+  const k = `${type}|${aq}|${label || ''}`;
+  return DM[k] ??= type === 'screen'
+    ? new THREE.MeshBasicMaterial({ map: decalTex(type, aq, label), transparent: true, depthWrite: false, toneMapped: false })
+    : new THREE.MeshStandardMaterial({ map: decalTex(type, aq, label), transparent: true, depthWrite: false, roughness: .5, polygonOffset: true, polygonOffsetFactor: -2 });
+}
+
+/* ---------- модуль: плита со скруглёнными в плане углами ---------- */
+const PL = new THREE.PlaneGeometry(1, 1), SG = {};
+function rrShape(w, d, r) {
+  const s = new THREE.Shape(), x = -w / 2, y = -d / 2;
+  s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.absarc(x + w - r, y + r, r, -Math.PI / 2, 0);
+  s.lineTo(x + w, y + d - r); s.absarc(x + w - r, y + d - r, r, 0, Math.PI / 2);
+  s.lineTo(x + r, y + d); s.absarc(x + r, y + d - r, r, Math.PI / 2, Math.PI);
+  s.lineTo(x, y + r); s.absarc(x + r, y + r, r, Math.PI, Math.PI * 1.5);
+  return s;
+}
+function slabGeo(w, h, d, r) {
+  const k = [w, h, d, r].map(v => v.toFixed(2)).join();
+  if (SG[k]) return SG[k];
+  const bev = Math.min(.06, h * .3), W = w - 2 * bev, D = d - 2 * bev, R = Math.max(.01, Math.min(r - bev, W / 2 - .001, D / 2 - .001));
+  const g = new THREE.ExtrudeGeometry(rrShape(W, D, R), { depth: Math.max(.001, h - 2 * bev), bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 3, curveSegments: 7 });
+  g.rotateX(-Math.PI / 2); g.translate(0, bev, 0);
+  return SG[k] = g;
+}
+const aqOf = (w, d) => Math.round(clamp(w / d, .25, 4) * 2) / 2 || .5;
+function mod(w, h, d, o = {}) {
+  const g = new THREE.Group(), r = o.r ?? Math.min(w, d) * .2;
+  const b = new THREE.Mesh(slabGeo(w, h, d, r), o.mat instanceof THREE.Material ? o.mat : MAT[o.mat || 'base']);
+  b.castShadow = b.receiveShadow = true; g.add(b); g.userData.body = b;
+  if (o.top) {
+    const [type, label] = o.top.split(':');
+    const p = new THREE.Mesh(PL, decalMat(type, aqOf(w, d), label)); p.rotation.x = -Math.PI / 2; p.position.y = h + .004; p.scale.set(w - r * .4, d - r * .4, 1); g.add(p);
+  }
+  if (o.neon) { const nm = o.neon instanceof THREE.Material ? o.neon : neonMat(o.neon, 2, o.neonOp ?? 1); g.add(neonLoop(rrPts(w - .02, d - .02, r), h + .006, o.neonR ?? .018, nm)); g.userData.neon = nm; }
+  return g;
+}
+// неоновая трубка по контуру; точки в плоскости XZ (p.x → x, p.y → z)
+function neonMat(col, k = 2.2, op = 1) { return new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(k), toneMapped: false, transparent: true, opacity: op, depthWrite: false }); }
+function neonLoop(pts2, y, rad, mat, closed = true) {
+  const pts = pts2.map(p => new THREE.Vector3(p.x, y, p.y));
+  if (closed && pts[0].distanceTo(pts[pts.length - 1]) < 1e-3) pts.pop();
+  const curve = new THREE.CatmullRomCurve3(pts, closed, 'centripetal');
+  return new THREE.Mesh(new THREE.TubeGeometry(curve, Math.min(700, pts.length * 4), rad, 6, closed), mat);
+}
+const rrPts = (w, d, r) => rrShape(w, d, Math.max(.02, Math.min(r, w / 2 - .01, d / 2 - .01))).getPoints(8);
+function ringGeo(w, d, r, t, h) {
+  const s = rrShape(w, d, r); s.holes.push(rrShape(w - 2 * t, d - 2 * t, Math.max(.02, r - t)));
+  const g = new THREE.ExtrudeGeometry(s, { depth: h, bevelEnabled: true, bevelThickness: .02, bevelSize: .02, bevelSegments: 2, curveSegments: 8 });
+  g.rotateX(-Math.PI / 2); return g;
+}
+// тонкая светлая линия на поверхности, как графика в референсе
+function hairline(S, x0, z0, x1, z1, y = .004, a = .32) {
+  const L = Math.hypot(x1 - x0, z1 - z0), m = new THREE.Mesh(new THREE.PlaneGeometry(L, .025), glow(0xdfe9f5, 1, { transparent: true, opacity: a, depthWrite: false }));
+  m.rotation.set(-Math.PI / 2, 0, -Math.atan2(z1 - z0, x1 - x0)); m.position.set((x0 + x1) / 2, y, (z0 + z1) / 2); S.scene.add(m);
+  const dot = new THREE.Mesh(new THREE.CircleGeometry(.07, 16), m.material); dot.rotation.x = -Math.PI / 2; dot.position.set(x1, y, z1); S.scene.add(dot);
+  return m;
+}
+
+/* ---------- фигуры и гаджеты ---------- */
+function ext(shape, depth = .3, bev = .07) {
+  const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: bev, bevelSize: bev * .85, bevelSegments: 4, curveSegments: 48 });
+  g.center(); g.computeBoundingBox(); return g;
+}
+const V2 = a => a.map(p => new THREE.Vector2(p[0], p[1]));
+const regPoly = (n, r, rot = 0) => Array.from({ length: n }, (_, i) => { const a = rot + i / n * Math.PI * 2; return new THREE.Vector2(Math.cos(a) * r, Math.sin(a) * r); });
+const plusPts = (a = .26, L = 1) => V2([[-a, L], [a, L], [a, a], [L, a], [L, -a], [a, -a], [a, -L], [-a, -L], [-a, -a], [-L, -a], [-L, a], [-a, a]]);
+const ringShape = (outer, inner) => { const s = new THREE.Shape(outer); s.holes.push(new THREE.Path(inner)); return s; };
+const symCache = {};
+function symbolGeo(kind) {
+  if (symCache[kind]) return symCache[kind];
+  let g;
+  if (kind === 'tri') g = ext(ringShape(regPoly(3, 1.15, Math.PI / 2), regPoly(3, .6, Math.PI / 2)), .45);
+  if (kind === 'plus') g = ext(new THREE.Shape(plusPts(.3, 1)));
+  if (kind === 'sq') g = ext(ringShape(regPoly(4, 1.12, Math.PI / 4), regPoly(4, .7, Math.PI / 4)), .45);
+  if (kind === 'circ') { const s = new THREE.Shape(); s.absarc(0, 0, 1, 0, Math.PI * 2, false); const h = new THREE.Path(); h.absarc(0, 0, .68, 0, Math.PI * 2, true); s.holes.push(h); g = ext(s, .45); }
+  if (kind === 'x') { g = ext(new THREE.Shape(plusPts(.22, 1.08)), .45); g.rotateZ(Math.PI / 4); g.computeBoundingBox(); }
+  if (kind === 'minus') g = ext(rrShape(2, .6, .22), .45);
+  return symCache[kind] = g;
+}
+function symbol(kind, mat) { const m = new THREE.Mesh(symbolGeo(kind), mat); m.castShadow = m.receiveShadow = true; m.userData.ground = -symbolGeo(kind).boundingBox.min.y; return m; }
+function part(g, parts, geo, mat, pos, v = [0, 0, 0], rot) {
+  const m = new THREE.Mesh(geo, mat); m.position.set(...pos); if (rot) m.rotation.set(...rot);
+  m.castShadow = true; g.add(m); parts.push({ m, base: m.position.clone(), v: new THREE.Vector3(...v) }); return m;
+}
+const GADGETS = {
+  gamepad() {
+    // обтекаемый корпус по силуэту настоящего геймпада, мягкая фаска, керамика
+    const g = new THREE.Group(), p = [], body = phys({ color: 0xaab6c8, roughness: .58, clearcoat: .12, clearcoatRoughness: .5, envMapIntensity: .35 });
+    const dark = phys({ color: 0x141a26, roughness: .6, clearcoat: .1, clearcoatRoughness: .5 });
+    const sh = new THREE.Shape();
+    sh.moveTo(-.75, .48); sh.quadraticCurveTo(0, .56, .75, .48);
+    sh.bezierCurveTo(1.05, .48, 1.12, .3, 1.1, .1); sh.bezierCurveTo(1.12, -.25, 1.05, -.62, .86, -.68);
+    sh.bezierCurveTo(.7, -.72, .58, -.55, .5, -.35); sh.bezierCurveTo(.42, -.2, .3, -.18, 0, -.18);
+    sh.bezierCurveTo(-.3, -.18, -.42, -.2, -.5, -.35); sh.bezierCurveTo(-.58, -.55, -.7, -.72, -.86, -.68);
+    sh.bezierCurveTo(-1.05, -.62, -1.12, -.25, -1.1, .1); sh.bezierCurveTo(-1.12, .3, -1.05, .48, -.75, .48);
+    const bg = new THREE.ExtrudeGeometry(sh, { depth: .16, bevelEnabled: true, bevelThickness: .13, bevelSize: .11, bevelSegments: 10, curveSegments: 40 });
+    bg.translate(0, 0, -.08);
+    part(g, p, bg, body, [0, 0, 0], [0, 0, -.4]);
+    const F = .23;
+    // стики: кольцо + вогнутая шляпка
+    [[-.33, -.14, -1], [.33, -.14, 1]].forEach(([x, y, sgn]) => {
+      const st = new THREE.Group(); st.position.set(x, y, F); g.add(st); p.push({ m: st, base: st.position.clone(), v: new THREE.Vector3(sgn * .18, -.25, 1.05) });
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(.15, .03, 16, 48), MAT.steel); st.add(ring);
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(.06, .08, .1, 24), dark); stem.rotation.x = Math.PI / 2; stem.position.z = .04; st.add(stem);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(.13, .12, .06, 40), dark); cap.rotation.x = Math.PI / 2; cap.position.z = .11; st.add(cap);
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(.115, .018, 12, 40), dark); rim.position.z = .145; st.add(rim);
+      st.traverse(o => o.castShadow = true);
+    });
+    const dp = new THREE.ExtrudeGeometry(new THREE.Shape(plusPts(.3, 1)), { depth: .3, bevelEnabled: true, bevelThickness: .12, bevelSize: .1, bevelSegments: 5 }); dp.center(); dp.scale(.13, .13, .13);
+    part(g, p, dp, dark, [-.66, .13, F + .02], [-.6, .45, .95]);
+    const btn = new THREE.CylinderGeometry(.058, .062, .07, 32);
+    [[0, .12, C.cyan], [.12, 0, C.violet], [0, -.12, C.ice], [-.12, 0, 0x2c3954]].forEach(([dx, dy, c]) => part(g, p, btn, gloss(c, .18), [.66 + dx, .13 + dy, F + .02], [.55 + dx * 5, .5 + dy * 5, 1.15], [Math.PI / 2, 0, 0]));
+    part(g, p, new RoundedBoxGeometry(.5, .28, .04, 3, .015), dark, [0, .22, F - .005], [0, .55, .8]);
+    part(g, p, new RoundedBoxGeometry(.36, .035, .03, 2, .012), glow(C.cyan, 1.4), [0, .43, F - .03], [0, .8, .6]);
+    part(g, p, new THREE.CylinderGeometry(.045, .045, .04, 24), glow(C.cyan, 1.2), [0, -.04, F], [0, -.25, .9], [Math.PI / 2, 0, 0]);
+    const shb = new RoundedBoxGeometry(.46, .1, .24, 4, .045);
+    part(g, p, shb, MAT.steel, [-.72, .5, 0], [-.35, .75, 0], [0, 0, .12]);
+    part(g, p, shb, MAT.steel, [.72, .5, 0], [.35, .75, 0], [0, 0, -.12]);
+    return { g, parts: p };
+  },
+  cartridge() {
+    const g = new THREE.Group(), p = [];
+    part(g, p, new RoundedBoxGeometry(1.1, 1.3, .24, 3, .07), gloss(0x1b2333, .3), [0, 0, 0]);
+    part(g, p, new RoundedBoxGeometry(.82, .62, .04, 2, .015), MAT.violet, [0, -.14, .13]);
+    const rib = new THREE.BoxGeometry(.9, .035, .25);
+    [.38, .46, .54].forEach(y => part(g, p, rib, MAT.steel, [0, y, .01]));
+    return { g, parts: p };
+  },
+  headphones() {
+    const g = new THREE.Group(), p = [];
+    part(g, p, new THREE.TorusGeometry(.56, .065, 14, 40, Math.PI), MAT.steel, [0, -.1, 0]);
+    const cup = new THREE.CylinderGeometry(.26, .26, .24, 32);
+    part(g, p, cup, gloss(C.ice, .3), [-.56, -.2, 0], [], [0, 0, Math.PI / 2]);
+    part(g, p, cup, gloss(C.ice, .3), [.56, -.2, 0], [], [0, 0, Math.PI / 2]);
+    return { g, parts: p };
+  },
+  drone() {
+    const g = new THREE.Group(), p = [];
+    part(g, p, new RoundedBoxGeometry(.5, .5, .18, 3, .07), gloss(C.ice, .28), [0, 0, 0]);
+    const arm = new RoundedBoxGeometry(1.05, .08, .05, 2, .02);
+    part(g, p, arm, MAT.steel, [0, 0, 0], [], [0, 0, Math.PI / 4]);
+    part(g, p, arm, MAT.steel, [0, 0, 0], [], [0, 0, -Math.PI / 4]);
+    const rot = new THREE.TorusGeometry(.2, .025, 8, 40);
+    [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach(([a, b]) => part(g, p, rot, glow(C.cyan, 1.2), [a * .37, b * .37, .05]));
+    return { g, parts: p };
+  },
+  joystick() {
+    const g = new THREE.Group(), p = [];
+    part(g, p, new RoundedBoxGeometry(1.1, .8, .28, 3, .1), gloss(0x1b2333, .3), [0, 0, -.1]);
+    part(g, p, new THREE.CylinderGeometry(.06, .06, .7, 16), MAT.steel, [0, 0, .3], [], [Math.PI / 2, 0, 0]);
+    part(g, p, new THREE.SphereGeometry(.2, 24, 16), gloss(C.cyan), [0, 0, .7]);
+    return { g, parts: p };
+  },
+  handheld() {
+    const g = new THREE.Group(), p = [];
+    part(g, p, new RoundedBoxGeometry(1.55, .85, .18, 4, .08), gloss(C.ice, .28), [0, 0, 0]);
+    part(g, p, new RoundedBoxGeometry(.66, .48, .02, 2, .01), glow(C.cyan, .7), [0, .02, .095]);
+    const dp = symbolGeo('plus').clone(); dp.scale(.11, .11, .25);
+    part(g, p, dp, gloss(0x1b2333), [-.55, .02, .1]);
+    const bt = new THREE.SphereGeometry(.06, 14, 10);
+    part(g, p, bt, gloss(C.violet), [.5, .08, .1]); part(g, p, bt, gloss(C.cyan), [.62, -.04, .1]);
+    return { g, parts: p };
+  },
+};
+
+// кнопка геймпада в колодце стола: нажимается и подсвечивается
+function keycap(S, x, z, kind, col, size = 1) {
+  const g = new THREE.Group(); g.position.set(x, 0, z); S.scene.add(g);
+  const well = new THREE.Mesh(ringGeo(size + .28, size + .28, (size + .28) / 2, .12, .1), MAT.deep); well.receiveShadow = true; g.add(well);
+  const capMat = phys({ color: 0x1a2232, roughness: .62, emissive: col, emissiveIntensity: 0 });
+  const cap = mod(size, .34, size, { mat: capMat, r: size / 2 - .01 }); g.add(cap);
+  const sym = symbol(kind, gloss(col, .2)); sym.rotation.x = -Math.PI / 2; sym.scale.setScalar(size * .22); sym.position.y = .34 + .07; cap.add(sym);
+  const kn = neonMat(col, 2.2, .28); g.add(neonLoop(rrPts(size + .2, size + .2, (size + .2) / 2), .115, .022, kn));
+  return { g, cap, press(k) { cap.position.y = -.14 * k; }, light(k) { capMat.emissiveIntensity = k * .55; kn.opacity = .28 + .72 * k; } };
+}
+// анаморфный блик в момент удара или замка
+function streak(S, col = C.cyan) {
+  const tex = cnv(1024, 64, g => { const gr = g.createLinearGradient(0, 0, 1024, 0); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(.5, 'rgba(235,250,255,1)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.filter = 'blur(5px)'; g.fillStyle = gr; g.fillRect(0, 24, 1024, 16); });
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: new THREE.Color(col).lerp(new THREE.Color(0xffffff), .5), transparent: true, opacity: 0, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+  sp.scale.set(16, .7, 1); S.scene.add(sp); return sp;
+}
+function shockRing(S, col) { const m = new THREE.Mesh(new THREE.RingGeometry(.96, 1, 128), new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(2.2), transparent: true, opacity: 0, depthWrite: false, toneMapped: false, side: THREE.DoubleSide })); m.rotation.x = -Math.PI / 2; S.scene.add(m); return m; }
+// тонкая световая дорожка, которая прочерчивается от точки к точке
+function lightPath(S, x0, z0, x1, z1, col, y = .02) {
+  const L = Math.hypot(x1 - x0, z1 - z0), geo = new THREE.BoxGeometry(L, .03, .06); geo.translate(L / 2, 0, 0);
+  const m = new THREE.Mesh(geo, glow(col, 2.2)); m.position.set(x0, y, z0); m.rotation.y = -Math.atan2(z1 - z0, x1 - x0); S.scene.add(m);
+  return { set(k) { m.scale.x = Math.max(1e-4, k); m.visible = k > 0; } };
+}
+
+/* ---------- сцена, свет, камера ---------- */
+function makeStage() {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0f18);
+  scene.fog = new THREE.Fog(0x0a0f18, 26, 62);
+  scene.environment = envTex;
+  const hemi = new THREE.HemisphereLight(0xa9bddb, 0x06080d, .42); scene.add(hemi);
+  const key = new THREE.DirectionalLight(0xe8f0ff, 2.1);
+  key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
+  Object.assign(key.shadow.camera, { left: -16, right: 16, top: 16, bottom: -16, near: .5, far: 70 });
+  key.shadow.radius = 10; key.shadow.blurSamples = 10; key.shadow.bias = -.0006;
+  scene.add(key, key.target);
+  const rimA = new THREE.PointLight(C.cyan, 0, 30, 2), rimB = new THREE.PointLight(C.violet, 0, 30, 2);
+  scene.add(rimA, rimB);
+  const cam = new THREE.PerspectiveCamera(35, 16 / 9, .1, 160);
+  return { scene, cam, key, hemi, rimA, rimB, focus: 10, ap: .004 };
+}
+/* монтаж камеры: планы с жёсткими склейками внутри одного пространства.
+   план: { t0, t1, p0, p1, l0, l1, fov, roll, fp, ap, top, e } или fn(k, t) → [pos, look] */
+const L3 = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2], b[2], k)];
+const soft = k => lerp(k, sine(k), .6), glide = k => E.inOutCubic(k);
+function shots(S, list) {
+  return (t, sh = 0) => {
+    let s = list[list.length - 1];
+    for (const x of list) if (t < x.t1) { s = x; break; }
+    const k = (s.e || soft)(seg(t, s.t0, s.t1)), cam = S.cam;
+    const [p, l] = s.fn ? s.fn(k, t) : [L3(s.p0, s.p1 || s.p0, k), L3(s.l0, s.l1 || s.l0, k)];
+    const fov = s.fov ? lerp(s.fov[0], s.fov[1] ?? s.fov[0], k) : 35;
+    if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
+    cam.position.set(p[0] + Math.sin(t * 93) * sh, p[1] + Math.cos(t * 71) * sh, p[2]);
+    if (s.top) cam.up.set(0, 0, -1); else cam.up.set(0, 1, 0);
+    cam.lookAt(l[0], l[1], l[2]);
+    if (s.roll) cam.rotateZ(lerp(s.roll[0], s.roll[1] ?? s.roll[0], k) * Math.PI / 180);
+    const fp = s.fp ? (typeof s.fp === 'function' ? s.fp(t) : s.fp) : l; S.focus = cam.position.distanceTo(V(...fp)); S.ap = (s.ap ?? .004) * .45;
+    // низкое боковое солнце — длинные мягкие тени, как в референсе
+    S.key.position.set(l[0] - 13, 10, l[2] - 5); S.key.target.position.set(l[0], 0, l[2]);
+    S.rimA.position.set(l[0] - 8, 4, l[2] + 6); S.rimA.intensity = 60;
+    S.rimB.position.set(l[0] + 8, 4, l[2] - 6); S.rimB.intensity = 60;
+  };
+}
+const ripple = (x, z, t, t0, cx, cz, amp = .3, sp = 9, w = 1.8) => {
+  if (t < t0) return 0; const dt = t - t0, d = Math.hypot(x - cx, z - cz);
+  return amp * Math.exp(-Math.pow((d - dt * sp) / w, 2)) * Math.exp(-dt * 1.2);
+};
+
+/* ---------- стол: поверхность из крупных тонких плит разного размера, без сетки ---------- */
+function makeTable(S, { x0 = -38, z0 = -28, x1 = 40, z1 = 24, seed = 3, res = [], hover = 0 } = {}) {
+  const r = rng(seed), panels = [];
+  const ground = mod(x1 - x0, .4, z1 - z0, { mat: 'base', r: 1 }); ground.position.set((x0 + x1) / 2, -.4, (z0 + z1) / 2); S.scene.add(ground);
+  const hits = (a, b, c, d) => res.some(q => !(c <= q[0] || a >= q[2] || d <= q[1] || b >= q[3]));
+  const leaf = (a, b, c, d) => {
+    const w = c - a - .14, dd = d - b - .14, area = w * dd, cx = (a + c) / 2, cz = (b + d) / 2;
+    const tall = area < 9 && r() < .14, acc = !tall && area < 4 && r() < .06;
+    const h = tall ? .5 + r() * 1.1 : .06 + r() * .2;
+    const mat = acc ? (r() < .7 ? 'cyan' : 'violet') : tall ? pick(r, ['deep', 'deep', 'satin']) : pick(r, ['base', 'base2', 'base2', 'deep', 'base']);
+    let top = acc ? 'dots' : pick(r, ['rings', 'lines', 'dots', `hud:${pick(r, HUDS)}`, 'frame', 'frame', 'frame', null]);
+    if (mat === 'deep' && r() < .5) top = 'rings';
+    const neon = acc ? null : (!tall && r() < .18) || (tall && r() < .5) ? neonMat(S.neonCol ?? C.cyan, 1.8, .75) : null;
+    const m = mod(w, h, dd, { mat, top, r: Math.min(w, dd) * (tall ? .24 : .1), neon }); m.position.set(cx, 0, cz); S.scene.add(m);
+    // мелкие квадратные детали на крупных плитах, как в референсе
+    if (!tall && w > 2.6 && dd > 2.6 && r() < .35) {
+      const n = 2 + Math.floor(r() * 4), sx = cx - w / 2 + .5 + r() * (w - 2), sz = cz - dd / 2 + .5 + r() * (dd - 2);
+      for (let i = 0; i < n; i++) { const s = .45 + r() * .4, q = mod(s, .1 + r() * .12, s, { mat: pick(r, ['base2', 'deep', 'satin']), r: .08 }); q.position.set(sx + (i % 2) * .62 - cx, h, sz + Math.floor(i / 2) * .62 - cz); m.add(q); }
+    }
+    const o = { m, x: cx, z: cz, h, area, r: r(), tall, neon };
+    if (hover && !tall && area < 14 && r() < hover) { o.hov = true; o.y1 = 1.2 + r() * 3.6; o.rx = (r() - .5) * .5; o.rz = (r() - .5) * .5; o.ph = r() * 6.28; }
+    panels.push(o);
+  };
+  const split = (a, b, c, d, dep) => {
+    const w = c - a, h = d - b, hit = hits(a, b, c, d);
+    if (hit && w <= 1.1 && h <= 1.1) return;
+    if (!hit && (dep >= 7 || (w < 6.5 && h < 6.5 && r() < .55) || (w < 3 && h < 3))) { leaf(a, b, c, d); return; }
+    if (w >= h) { const s = a + clamp(Math.round(w * (.3 + r() * .4) * 2) / 2, .5, w - .5); split(a, b, s, d, dep + 1); split(s, b, c, d, dep + 1); }
+    else { const s = b + clamp(Math.round(h * (.3 + r() * .4) * 2) / 2, .5, h - .5); split(a, b, c, s, dep + 1); split(a, s, c, d, dep + 1); }
+  };
+  split(x0 + .5, z0 + .5, x1 - .5, z1 - .5, 0);
+  return { panels, update(fn) { for (const o of panels) fn(o); } };
+}
+
+/* ---------- титр: объёмная надпись на поверхности + мягкая тень ---------- */
+function makeText(parts, o = {}) {
+  const font = o.font || '800 180px Unbounded, "Arial Black", sans-serif', H = o.h || 1, layers = o.layers ?? 8, depth = o.depth ?? .14, skew = o.skew ?? -.12, ls = o.track || 0;
+  const meas = document.createElement('canvas').getContext('2d'); meas.font = font; if (ls) meas.letterSpacing = ls + 'px';
+  const wd = parts.map(p => meas.measureText(p.s).width), tw = wd.reduce((a, b) => a + b, 0), cw = Math.ceil(tw + 140), ch = 260;
+  const draw = key => cnv(cw, ch, g => {
+    g.font = font; g.textBaseline = 'middle'; if (ls) g.letterSpacing = ls + 'px';
+    if (key === 'shadow') g.filter = 'blur(12px)';
+    g.setTransform(1, 0, skew, 1, 70 - skew * 130, 0);
+    let x = 0; parts.forEach((p, i) => { g.fillStyle = key === 'face' ? p.c : key === 'side' ? (p.side || p.c) : 'rgba(0,0,0,.85)'; g.fillText(p.s, x, 130); x += wd[i]; });
+  });
+  const face = draw('face'), side = layers > 1 ? draw('side') : face, shTex = o.noShadow ? null : draw('shadow');
+  const W = H * cw / ch, g = new THREE.Group(), mats = [];
+  for (let i = 0; i < layers; i++) {
+    const top = i === layers - 1;
+    // лицевой слой не освещается: чёткие буквы без ореола, как плоская графика; боковые слои дают объём
+    const mt = top && o.glowTop !== false
+      ? new THREE.MeshBasicMaterial({ map: face, color: new THREE.Color(.86, .86, .86), transparent: true, alphaTest: .05, opacity: 0 })
+      : new THREE.MeshStandardMaterial({ map: top ? face : side, transparent: true, alphaTest: .05, opacity: 0, roughness: .6, metalness: .05 });
+    const m = new THREE.Mesh(PL, mt); m.rotation.x = -Math.PI / 2; m.position.y = .006 + (layers > 1 ? i / (layers - 1) * depth : 0); m.scale.set(W, H, 1); m.receiveShadow = top; g.add(m); mats.push(mt);
+  }
+  let shadow = null;
+  if (shTex) { shadow = new THREE.Mesh(PL, new THREE.MeshBasicMaterial({ map: shTex, transparent: true, depthWrite: false, opacity: 0 })); shadow.rotation.x = -Math.PI / 2; shadow.position.set(.22 * H, .003, .12 * H); shadow.scale.set(W * 1.03, H * 1.05, 1); g.add(shadow); }
+  return { g, W, tw: H * tw / ch, show(p) { mats.forEach(m => m.opacity = p); if (shadow) shadow.material.opacity = p * .75; }, set(p) { this.show(p); } };
+}
+function glowLine(len, c) { return new THREE.Mesh(new RoundedBoxGeometry(len, .04, .06, 2, .015), glow(c, 2)); }
+function bugHTML() { return `<div class="bug" data-k="bug">${LOGO_SVG}</div>`; }
+function fade(el, t, a, dur = .8) { const k = glide(seg(t, a, a + dur)); el.style.opacity = k; return k; }
+// два слова въезжают навстречу друг другу, между ними прочерчивается линия — как в финале референса
+function titlePair(S, c, w1, w2, o = {}) {
+  const h = o.h || .9, A = makeText([{ s: w1, c: o.c1 || '#E6EEF8', side: o.s1 || '#3d4a63' }], { h }), B = makeText([{ s: w2, c: o.c2 || '#E6EEF8', side: o.s2 || '#3d4a63' }], { h });
+  const gap = h * (o.gap ?? .35), total = A.tw + gap + B.tw, xa = c.x - total / 2 + A.tw / 2, xb = c.x + total / 2 - B.tw / 2;
+  const za = c.z - h * (o.stagger ?? .5), zb = c.z + h * (o.stagger ?? .5);
+  A.g.position.set(xa, c.y, za); B.g.position.set(xb, c.y, zb); S.scene.add(A.g, B.g);
+  const lz = c.z + (o.lz ?? h * .95), lx = c.x - total * .12; const line = glowLine(o.lw || total * .6, o.lc || C.cyan); line.position.set(lx, c.y + .02, lz); S.scene.add(line);
+  const sub = o.sub ? makeText([{ s: o.sub, c: o.subC || '#c3cfe0' }], { font: `600 120px ${MONO}`, h: o.sh ?? .3, layers: 1, skew: 0, track: 16, noShadow: true, emi: .08 }) : null;
+  if (sub) { sub.g.position.set(c.x, c.y, c.z + (o.sz ?? h * 1.5)); S.scene.add(sub.g); }
+  return {
+    update(t, t0) {
+      const p = glide(seg(t, t0, t0 + 1.2)), q = glide(seg(t, t0 + .2, t0 + 1.4));
+      A.show(p); A.g.position.x = xa - (1 - p) * 2.2; B.show(q); B.g.position.x = xb + (1 - q) * 2.2;
+      line.scale.x = Math.max(1e-4, glide(seg(t, t0 + .8, t0 + 1.9))); line.position.x = lx - (1 - glide(seg(t, t0 + .8, t0 + 1.9))) * total * .3;
+      if (sub) sub.show(glide(seg(t, t0 + 1.4, t0 + 2.2)));
+    },
+  };
+}
+
+/* ---------- знак E из двух частей: корпус и центральная планка ---------- */
+function shellShape() {
+  const { W, H, t, R } = LG, h = H / 2, c = h - R, r = R - t, s = new THREE.Shape();
+  s.moveTo(W, h); s.lineTo(R, h); s.absarc(R, c, R, Math.PI / 2, Math.PI, false);
+  s.lineTo(0, -c); s.absarc(R, -c, R, Math.PI, Math.PI * 1.5, false);
+  s.lineTo(W, -h); s.lineTo(W, -h + t); s.lineTo(R, -h + t);
+  s.absarc(R, -c, r, Math.PI * 1.5, Math.PI, true);
+  s.lineTo(t, c); s.absarc(R, c, r, Math.PI, Math.PI / 2, true);
+  s.lineTo(W, h - t); s.lineTo(W, h);
+  return s;
+}
+function flatGeo(shape, depth, bev, S, dx) {
+  const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: bev, bevelSize: bev * .8, bevelSegments: 5, curveSegments: 40 });
+  g.rotateX(-Math.PI / 2); g.translate(dx, bev, 0); g.scale(S, S, S); return g;
+}
+function makeE(S3, S = 5) {
+  const { W, t, m, Wm } = LG, depth = .1, bev = .025, g = new THREE.Group(); S3.scene.add(g);
+  const sg = flatGeo(shellShape(), depth, bev, S, -W / 2);
+  const dark = new THREE.Mesh(sg, MAT.satin); dark.castShadow = dark.receiveShadow = true; g.add(dark);
+  const plane = new THREE.Plane(new THREE.Vector3(-1, 0, 0), -99);
+  const cyanMat = phys({ color: C.cyan, roughness: .6, envMapIntensity: .12, emissive: C.cyan, emissiveIntensity: .05, clippingPlanes: [plane], polygonOffset: true, polygonOffsetFactor: -1 });
+  const lit = new THREE.Mesh(sg, cyanMat); lit.scale.setScalar(1.002); g.add(lit);
+  // планка: опорная точка на левом торце
+  const bl = (Wm - t + .03), bs = new THREE.Shape(); bs.moveTo(0, -m); bs.lineTo(bl - .02, -m); bs.quadraticCurveTo(bl, -m, bl, -m + .02); bs.lineTo(bl, m - .02); bs.quadraticCurveTo(bl, m, bl - .02, m); bs.lineTo(0, m); bs.lineTo(0, -m);
+  const barMat = phys({ color: 0xc6d6ea, roughness: .35, clearcoat: .3, transparent: true, opacity: .82, emissive: C.cyan, emissiveIntensity: 0, envMapIntensity: .6 });
+  const bar = new THREE.Mesh(flatGeo(bs, depth, bev, S, 0), barMat); bar.castShadow = true; S3.scene.add(bar);
+  const barLen = bl * S, slotX = (t - .03 - W / 2) * S, H = (depth + 2 * bev) * S;
+  // световое пятно на столе вокруг знака: неон не трогает кромки логотипа
+  const haloTex = cnv(1024, 720, g2 => { g2.filter = 'blur(38px)'; g2.fillStyle = 'rgba(0,217,255,.9)'; g2.translate(512, 360); g2.scale(560, 560); g2.translate(-.8, 0); const P = new Path2D(); LOGO_PTS.forEach((p, i) => i ? P.lineTo(p.x, -p.y) : P.moveTo(p.x, -p.y)); P.closePath(); g2.fill(P); });
+  const halo = new THREE.Mesh(PL, new THREE.MeshBasicMaterial({ map: haloTex, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
+  halo.rotation.x = -Math.PI / 2; halo.position.y = .015; halo.scale.set(W * S * 1.28 * 1024 / 896, W * S * 1.28 * 720 / 896, 1); g.add(halo);
+  return {
+    g, bar, barMat, barLen, slotX, H,
+    neon(k) { halo.material.opacity = k * .26; }, barNeon() { },
+    lightBar(k) { barMat.color.set(0xc6d6ea).lerp(new THREE.Color(C.cyan), k); barMat.emissiveIntensity = k * .05; barMat.opacity = lerp(.82, 1, k); barMat.transparent = k < 1; barMat.envMapIntensity = lerp(.6, .15, k); barMat.clearcoat = lerp(.3, 0, k); barMat.roughness = lerp(.35, .55, k); },
+    sweep(k) { plane.constant = k <= 0 ? -99 : k >= 1 ? 99 : lerp(-W / 2 * S - .2, W / 2 * S + .2, k); },
+  };
+}
+
+/* ---------- лоток с матовым стеклом на стойках ---------- */
+function makeTray(S, c, w, d, o = {}) {
+  const g = new THREE.Group(); g.position.copy(c); S.scene.add(g);
+  const lid = new THREE.Group(); lid.position.y = o.lidY ?? .95; g.add(lid);
+  const fr = new THREE.Mesh(ringGeo(w, d, Math.min(w, d) * .14, .3, .12), MAT.deep); fr.castShadow = fr.receiveShadow = true; lid.add(fr);
+  const paneMat = new THREE.MeshStandardMaterial({ color: 0xa9bbd2, map: decalTex('glass', aqOf(w - .6, d - .6), o.label), transparent: true, depthWrite: false, roughness: .45, envMapIntensity: .45 });
+  [.04, .1].forEach(y => { const p = new THREE.Mesh(PL, paneMat); p.rotation.x = -Math.PI / 2; p.position.y = y; p.scale.set(w - .5, d - .5, 1); lid.add(p); });
+  const post = new THREE.CylinderGeometry(.09, .09, lid.position.y, 16);
+  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b]) => { const p = new THREE.Mesh(post, MAT.steel); p.position.set(a * (w / 2 - .16), lid.position.y / 2, b * (d / 2 - .16)); p.castShadow = true; g.add(p); });
+  const pill = new THREE.Mesh(new THREE.CapsuleGeometry(.11, .32, 6, 16), MAT.deep); pill.rotation.z = Math.PI / 2; pill.position.set(w / 2 - .75, .2, -d / 2 + .15); lid.add(pill);
+  const knobMat = phys({ color: C.ice, roughness: .3, emissive: o.accent ?? C.cyan, emissiveIntensity: 0 });
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(.11, 20, 14), knobMat); knob.position.set(w / 2 - .91, .26, -d / 2 + .15); lid.add(knob);
+  const tn = neonMat(o.accent ?? C.cyan, 2.2, .3); lid.add(neonLoop(rrPts(w - .05, d - .05, Math.min(w, d) * .14), .15, .028, tn));
+  return {
+    g, lid, tn,
+    toggle(k) { tn.opacity = .3 + .7 * k; knob.position.x = lerp(w / 2 - .91, w / 2 - .59, k); knobMat.color.set(C.ice).lerp(new THREE.Color(o.accent ?? C.cyan), k); knobMat.emissiveIntensity = k * .8; },
+  };
+}
+
+/* =========================================================
+   1. ЗАСТАВКА КАНАЛА · 15 с — история буквы E
+   Планка знака загорается на вершине ступеней, поднимается над столом,
+   проходит под стеклом сканера и встаёт на место в корпус E.
+   ========================================================= */
+function buildIdent() {
+  const S = makeStage();
+  const T = makeTable(S, { seed: 5, hover: .32, res: [[-4.9, -3.4, 4.9, 3.4], [3.6, -1.1, 23, 1.1], [7.9, -2.4, 13.7, 2.4], [4.5, -8.6, 19.6, -2.5], [-10, -8.4, 3.4, -4.4], [-7.2, 3.4, 7.2, 6.6], [-8.6, 2.8, -5.6, 5.4], [-9.8, -2.8, -5.4, 1.6]] });
+  const EE = makeE(S, 5);
+  // кнопки геймпада: нажатие ✕ — это «старт» всей истории
+  const pad = mod(3.7, .08, 3.7, { mat: 'deep', top: 'rings', r: 1.85 }); pad.position.set(1.4, 0, -6.7); S.scene.add(pad);
+  const keys = { tri: keycap(S, 1.4, -7.62, 'tri', C.cyan, .78), circ: keycap(S, 2.32, -6.7, 'circ', C.violet, .78), x: keycap(S, 1.4, -5.78, 'x', C.cyan, .78), sq: keycap(S, .48, -6.7, 'sq', C.ice, .78) };
+  const press = makeText([{ s: 'PRESS START', c: '#3b4a66' }], { font: `600 120px ${MONO}`, h: .3, layers: 1, skew: 0, track: 24, noShadow: true, emi: 0, glowTop: false }); press.g.position.set(1.4, .01, -4.75); press.show(1); S.scene.add(press.g);
+  const link = lightPath(S, 1.9, -5.4, 4.5, -3.3, C.cyan);
+  // крестовина как ещё одна деталь игрового стола
+  const dpBase = mod(3.6, .08, 3.6, { mat: 'deep', top: 'rings', r: 1.8 }); dpBase.position.set(-7.6, 0, -.6); S.scene.add(dpBase);
+  const dpG = new THREE.ExtrudeGeometry(new THREE.Shape(plusPts(.3, 1)), { depth: .2, bevelEnabled: true, bevelThickness: .1, bevelSize: .08, bevelSegments: 5 }); dpG.rotateX(-Math.PI / 2); dpG.scale(1.25, 1.25, 1.25);
+  const dpad = new THREE.Mesh(dpG, MAT.satin); dpad.position.set(-7.6, .1, -.6); dpad.castShadow = dpad.receiveShadow = true; S.scene.add(dpad);
+  // ступени: тонкие плиты, по рёбрам бежит свет
+  const steps = [];
+  for (let i = 0; i < 8; i++) {
+    const h = .1 + i * .13, sw = i === 7 ? 7.4 : 2.3, m = mod(sw, h, 1.05, { mat: i % 2 ? 'base2' : 'satin', top: i % 3 ? 'frame' : 'lines', r: .14 });
+    const x = 5.6 + i * 1.0 + (i === 7 ? 2.55 : 0), z = -3.1 - i * .62; m.position.set(x, 0, z); S.scene.add(m);
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(sw - .2, .03, .03), glow(C.cyan, 2.2, { transparent: true, opacity: 0, depthWrite: false })); edge.position.set(x, h, z + .53); S.scene.add(edge);
+    steps.push({ h, x, z, edge, t0: .95 + i * .22 });
+  }
+  const top = steps[7];
+  // дорожка к знаку: по бокам шкала прогресса, как полоска загрузки уровня
+  const track = mod(19.4, .06, 1.5, { mat: 'deep', top: 'hud:LOADING', r: .5 }); track.position.set(13.1, 0, 0); S.scene.add(track);
+  const railMat = neonMat(C.cyan, 1.6, .55); [-.62, .62].forEach(z => { const rail = mod(19, .1, .08, { mat: railMat, r: .03 }); rail.position.set(13.1, .06, z); S.scene.add(rail); });
+  const cells = Array.from({ length: 20 }, (_, i) => { const mat = phys({ color: 0x0f141f, roughness: .4, clearcoat: .4, emissive: C.cyan, emissiveIntensity: 0 }); const m = mod(.62, .07, .2, { mat, r: .06 }); const x = 4.8 + i * .87; m.position.set(x, 0, 1.0); S.scene.add(m); return { mat, x }; });
+  const tray = makeTray(S, V(10.8, 0, 0), 5.4, 4.4, { lidY: 1.0, label: 'PLAYER 1  SCAN' });
+  const emb = makeText([{ s: 'Е ТВ', c: '#2a3650', side: '#141b29' }], { h: 2.2, layers: 5, depth: .06, emi: 0, glowTop: false, noShadow: true, skew: -.08 }); emb.g.position.set(-3.9, 0, -6.4); emb.show(1); S.scene.add(emb.g);
+  hairline(S, -4.6, 3.9, 2.5, 3.9); hairline(S, 4.6, -2.2, 4.6, 2.3); hairline(S, -9.5, -4.2, -1, -4.2); hairline(S, 14.2, 2.8, 20, 2.8);
+  const fig = symbol('tri', gloss(C.ice, .25)); fig.scale.setScalar(.42); fig.position.set(-7.1, fig.userData.ground * .42, 4.1); fig.rotation.y = .5; S.scene.add(fig);
+  const TP = titlePair(S, V(0, 0, 4.75), 'ИГРОВОЙ', 'КАНАЛ', { h: .82, stagger: .32, lz: 1.12, sz: 1.68, lw: 4.2, sh: .3, sub: 'E-SPORTS · ENTERTAINMENT · EDUCATION · ENERGY', subC: '#00D9FF' });
+  const fx = streak(S, C.cyan), shock = shockRing(S, C.cyan);
+
+  const P0 = V(top.x - EE.barLen / 2, top.h, top.z), P1 = V(9.2, 6.2, -3.6), P2 = V(15.8, .06, 0), P3 = V(6.4, .06, 0), P4 = V(EE.slotX, .06, 0);
+  const barPose = t => {
+    if (t < 3.4) return [P0, 0];
+    if (t < 5.2) { const k = glide(seg(t, 3.4, 5.2)); return [V(lerp(P0.x, P1.x, k), lerp(P0.y, P1.y, k) + Math.sin(k * Math.PI) * .8, lerp(P0.z, P1.z, k)), Math.sin(k * Math.PI) * .25]; }
+    if (t < 6.4) { const k = glide(seg(t, 5.2, 6.4)); return [V(lerp(P1.x, P2.x, k), lerp(P1.y, P2.y, k), lerp(P1.z, P2.z, k)), 0]; }
+    if (t < 9.0) { const k = seg(t, 6.4, 9.0); return [V(lerp(P2.x, P3.x, soft(k)), .06, 0), 0]; }
+    const k = glide(seg(t, 9.0, 10.6)); return [V(lerp(P3.x, P4.x, k), .06, 0), 0];
+  };
+  const cam = shots(S, [
+    { t0: 0, t1: 3.4, p0: [-.4, 8.6, 1.6], p1: [1.4, 8, .8], l0: [5.4, 0, -5.6], l1: [7.4, .3, -5.6], fov: [36, 35], roll: [-2, 0], ap: .006 },
+    { t0: 3.4, t1: 6.4, p0: [10.5, 21, -3.2], p1: [11.5, 20, -2.6], l0: [10.5, 0, -3.3], l1: [11.5, 0, -2.7], fov: [36, 36], top: true, fp: t => { const [p] = barPose(t); return [p.x + EE.barLen / 2, p.y, p.z]; }, ap: .006 },
+    { t0: 6.4, t1: 9, p0: [12.4, 12.5, .4], p1: [9.4, 12, .4], l0: [12.4, 0, .41], l1: [9.4, 0, .41], fov: [36, 36], top: true, ap: .004 },
+    { t0: 9, t1: 11.6, p0: [9.8, 5.6, 6.4], p1: [7.6, 5.4, 5.6], l0: [2.2, .2, 0], l1: [.6, .2, 0], fov: [32, 31], fp: t => { const [p] = barPose(t); return [p.x + EE.barLen / 2, .4, 0]; }, ap: .009 },
+    { t0: 11.6, t1: 15, p0: [.3, 31, 1.9], p1: [0, 29, 1.9], l0: [.3, 0, 1.9], l1: [0, 0, 1.9], fov: [22, 22], top: true, ap: .0015 },
+  ]);
+  return {
+    S, dur: 15, overlay: '',
+    update(t) {
+      T.update(o => {
+        let y = 0; o.m.rotation.set(0, 0, 0);
+        if (o.hov) { const up = glide(seg(t, 3.4 + o.r * .8, 4.8 + o.r * .8)), dn = glide(seg(t, 8.4 + o.r * .9, 10 + o.r * .9)), k = up * (1 - dn); y = k * (o.y1 + Math.sin(t * .7 + o.ph) * .2); o.m.rotation.set(o.rx * k, 0, o.rz * k); }
+        o.m.position.y = y + ripple(o.x, o.z, t, 10.6, EE.slotX + 3, 0, .18, 9);
+        // мир «загружается», как консоль: неоновые швы зажигаются волной от кнопки
+        if (o.neon) { const d = Math.hypot(o.x - 1.4, o.z + 6.7); o.neon.opacity = .75 * glide(seg(t, .6 + d * .045, 1.3 + d * .045)) * (1 - .65 * glide(seg(t, 11.2, 12.2))); }
+      });
+      const boot = glide(seg(t, .5, 3.2)); S.key.intensity = lerp(.35, 2.1, boot); S.hemi.intensity = lerp(.1, .42, boot); railMat.opacity = .55 * boot;
+      // нажатие ✕ → свет по дорожке → свет по ступеням → планка загорается
+      const pk = Math.sin(seg(t, .15, .55) * Math.PI); keys.x.press(pk); keys.x.light(Math.max(pk, t > .3 ? .5 : 0));
+      link.set(glide(seg(t, .45, .95)));
+      steps.forEach(s => { s.edge.material.opacity = Math.sin(seg(t, s.t0, s.t0 + .7) * Math.PI) * .95 + (t > s.t0 + .35 ? .15 : 0); });
+      EE.lightBar(glide(seg(t, 2.6, 3.2))); EE.barNeon(glide(seg(t, 2.6, 3.2)));
+      const [bp, br] = barPose(t); EE.bar.position.copy(bp); EE.bar.rotation.set(0, 0, br);
+      cells.forEach(c => { c.mat.emissiveIntensity = (t > 6.4 && bp.x < c.x - .4) ? .8 : 0; c.mat.color.set(t > 6.4 && bp.x < c.x - .4 ? C.cyan : 0x0f141f); });
+      tray.toggle(glide(seg(t, 7.0, 7.4)));
+      EE.sweep(glide(seg(t, 10.6, 11.6))); EE.neon(glide(seg(t, 10.6, 11.5)));
+      const lk = seg(t, 10.55, 11.3); fx.position.set(EE.slotX + EE.barLen, EE.H + .4, 0); fx.material.opacity = Math.sin(lk * Math.PI) * .95;
+      const skk = seg(t, 10.6, 11.9); shock.position.set(.4, .03, 0); shock.scale.setScalar(lerp(2.5, 17, E.outCubic(skk))); shock.material.opacity = skk > 0 && skk < 1 ? (1 - skk) * .85 : 0;
+      // финальное комбо кнопок, когда знак собран
+      [['tri', 10.75], ['circ', 10.95], ['sq', 11.15]].forEach(([k, t0]) => { const q = Math.sin(seg(t, t0, t0 + .3) * Math.PI); keys[k].press(q); keys[k].light(Math.max(q, t > t0 + .15 ? .5 : 0)); });
+      TP.update(t, 12.6);
+      cam(t, t > 10.6 && t < 11.3 ? .05 * Math.exp(-(t - 10.6) * 8) : 0);
+    },
+    ov() { },
+  };
+}
+
+/* =========================================================
+   2. ВЕРДИКТ · 15 с — разбор игры и решение
+   Картридж под стеклом сканируется, шкала и кнопки «плюс»/«минус» считают оценку,
+   большая печать заряжается, бьёт по стеклу и переворачивается: на её лице — название рубрики.
+   ========================================================= */
+function buildVerdict() {
+  const S = makeStage(); S.neonCol = C.violet;
+  const T = makeTable(S, { seed: 19, hover: .3, res: [[-7.6, -3.1, -1.4, 3.1], [-11.4, 4.9, 10.6, 7.1], [1.6, -2.8, 9.4, 2.4], [-12, -8, -3, -4.6], [-11.6, -3.4, -8, 1.6]] });
+  const tray = makeTray(S, V(-4.5, 0, 0), 5.6, 5.2, { lidY: 1.0, accent: C.violet, label: 'REVIEW  02' });
+  const cart = GADGETS.cartridge(); cart.g.rotation.x = -Math.PI / 2; cart.g.scale.setScalar(1.5); cart.g.position.set(-4.5, .2, 0); S.scene.add(cart.g);
+  const scan = new THREE.Mesh(new THREE.BoxGeometry(.06, .04, 4.4), glow(C.violet, 2.4, { transparent: true, opacity: 0, depthWrite: false })); scan.position.y = .55; S.scene.add(scan);
+  const rail = mod(15.8, .22, 1.4, { mat: 'deep', top: 'hud:SCORE', r: .55 }); rail.position.set(-2.4, 0, 6); S.scene.add(rail);
+  const pips = Array.from({ length: 10 }, (_, i) => { const mat = phys({ color: 0x0f141f, roughness: .4, clearcoat: .4, emissive: C.violet, emissiveIntensity: 0 }); const m = mod(.86, .2, .86, { mat, top: 'dots', r: .22 }); m.position.set(-9.6 + i * 1.08, .22, 6); S.scene.add(m); return mat; });
+  // плюсы и минусы — кнопки, как на геймпаде
+  const kPlus = keycap(S, 7.6, 6, 'plus', C.cyan, .95), kMinus = keycap(S, 9.2, 6, 'minus', C.violet, .95);
+  // кнопки △ ○ ✕ □ на краю стола
+  const fb = mod(3.4, .08, 3.4, { mat: 'deep', top: 'rings', r: 1.7 }); fb.position.set(-9.8, 0, -.9); S.scene.add(fb);
+  const fbk = [['tri', 0, -.85, C.cyan], ['circ', .85, 0, C.violet], ['x', 0, .85, C.cyan], ['sq', -.85, 0, C.ice]].map(([k, dx, dz, c]) => keycap(S, -9.8 + dx, -.9 + dz, k, c, .7));
+  // большая печать: с первого кадра лежит лицом вниз, на лице рельефом набрано название рубрики
+  const stamp = new THREE.Group(); S.scene.add(stamp);
+  const bodyMat = phys({ color: 0x1a2232, roughness: .66, emissive: C.violet, emissiveIntensity: 0 });
+  const body = mod(6.8, .9, 4.4, { mat: bodyMat, r: .9 }); body.position.y = -.45; stamp.add(body);
+  const bandMat = glow(C.violet, 2.2, { transparent: true, opacity: .15, depthWrite: false });
+  const band = new THREE.Mesh(ringGeo(6.9, 4.5, .95, .08, .1), bandMat); band.position.y = -.25; stamp.add(band);
+  const block = mod(3, .4, 1.8, { mat: 'deep', top: 'hud:VERDICT', r: .5 }); stamp.add(block);
+  [-.95, .95].forEach(x => { const p = new THREE.Mesh(new THREE.CylinderGeometry(.13, .13, .62, 20), MAT.steel); p.position.set(x, .7, 0); p.castShadow = true; stamp.add(p); });
+  const grip = new THREE.Mesh(new THREE.CapsuleGeometry(.42, 2.2, 12, 32), phys({ color: C.violet, roughness: .55, emissive: C.violet, emissiveIntensity: .25 })); grip.rotation.z = Math.PI / 2; grip.position.y = 1.35; grip.castShadow = true; stamp.add(grip);
+  const face = new THREE.Group(); face.rotation.x = Math.PI; face.position.y = -.9; stamp.add(face);
+  face.add(mod(6.2, .06, 3.8, { mat: 'deep', top: 'lines', r: .7 }));
+  const title = makeText([{ s: 'ВЕРДИКТ', c: '#E6EEF8', side: '#7A35FF' }], { h: 1.15, noShadow: true }); title.g.position.set(0, .06, -.5); title.show(1); face.add(title.g);
+  const fl = glowLine(4.6, C.violet); fl.position.set(0, .08, .35); face.add(fl);
+  face.add(neonLoop(rrPts(6.1, 3.7, .68), .075, .028, neonMat(C.violet, 2.4)));
+  const fxV = streak(S, C.violet), shockV = shockRing(S, C.violet);
+  const sub = makeText([{ s: 'НОВЫЕ ИГРЫ · ПЛЮСЫ · МИНУСЫ · ИТОГ', c: '#c3cfe0' }], { font: `600 120px ${MONO}`, h: .27, layers: 1, skew: 0, track: 14, noShadow: true, emi: .08 }); sub.g.position.set(0, .07, .82); sub.show(1); face.add(sub.g);
+  Array.from({ length: 10 }, (_, i) => { const m = mod(.3, .1, .3, { mat: 'violet', r: .08 }); m.position.set(-2.6 + i * .58, .06, 1.35); face.add(m); });
+  stamp.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  const imprint = new THREE.Mesh(PL, new THREE.MeshBasicMaterial({ map: cnv(1024, 680, g => { g.strokeStyle = '#a77bff'; g.lineWidth = 10; g.shadowColor = '#7A35FF'; g.shadowBlur = 30; g.beginPath(); g.roundRect(30, 30, 964, 620, 120); g.stroke(); g.lineWidth = 60; g.lineCap = g.lineJoin = 'round'; g.beginPath(); g.moveTo(370, 350); g.lineTo(470, 450); g.lineTo(660, 230); g.stroke(); }), transparent: true, opacity: 0, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
+  imprint.rotation.x = -Math.PI / 2; imprint.scale.set(4.9, 3.25, 1); S.scene.add(imprint);
+  const emb = makeText([{ s: 'ВЕРДИКТ', c: '#2a3650', side: '#141b29' }], { h: 1.4, layers: 5, depth: .05, emi: 0, glowTop: false, noShadow: true, skew: -.08 }); emb.g.position.set(-7.4, 0, -6.3); emb.show(1); S.scene.add(emb.g);
+  hairline(S, -1.2, -3.4, 9.6, -3.4); hairline(S, -1.2, 3.2, 9.4, 3.2); hairline(S, 10.4, 4.7, 10.4, 7.4);
+
+  const SLAM = 9.82, lidTop = 1.0 + .12, H = V(5.5, .65, -.2), A = V(2.2, 5.2, 1.4), B = V(-4.5, 4.4, 0), D = V(.6, 3.8, -.2), F = V(5.2, .95, -.2);
+  const lidDip = t => t < SLAM ? 0 : -.14 * Math.exp(-(t - SLAM) * 7) * Math.cos((t - SLAM) * 14);
+  const pose = t => {
+    if (t < 6.4) return [H, 0, 0];
+    if (t < 8.6) { const k = glide(seg(t, 6.4, 8.6)); return [V(lerp(H.x, A.x, k), lerp(H.y, A.y, k), lerp(H.z, A.z, k)), Math.sin(k * Math.PI) * .12, 0]; }
+    if (t < 9.6) { const k = glide(seg(t, 8.6, 9.6)); return [V(lerp(A.x, B.x, k), lerp(A.y, B.y, k), lerp(A.z, B.z, k)), 0, 0]; }
+    if (t < SLAM) return [V(B.x, lerp(B.y, lidTop + .65, E.inCubic(seg(t, 9.6, SLAM))), B.z), 0, 0];
+    if (t < 10.3) return [V(B.x, lidTop + .65 + lidDip(t), B.z), 0, 0];
+    if (t < 11.5) { const k = glide(seg(t, 10.3, 11.5)); return [V(lerp(B.x, D.x, k), lerp(lidTop + .65, D.y, k), lerp(B.z, D.z, k)), 0, glide(seg(t, 10.5, 11.6)) * Math.PI]; }
+    const k = glide(seg(t, 11.5, 12.4)); return [V(lerp(D.x, F.x, k), lerp(D.y, F.y, k), lerp(D.z, F.z, k)), 0, Math.PI];
+  };
+  const cam = shots(S, [
+    { t0: 0, t1: 3.4, p0: [-1, 7.6, 6.6], p1: [-2.2, 7, 5.8], l0: [-4.5, 0, 0], l1: [-4.6, .2, -.2], fov: [34, 33], roll: [2, 0], ap: .005 },
+    { t0: 3.4, t1: 6.4, p0: [-11.6, 3.6, 10.6], p1: [.8, 3.8, 10.8], l0: [-7.4, 0, 5.6], l1: [7.8, .2, 5.6], fov: [32, 31], ap: .009 },
+    { t0: 6.4, t1: 8.8, p0: [3.6, 22, 1], p1: [2.6, 21, .8], l0: [3.6, 0, 1], l1: [2.6, 0, .8], fov: [36, 36], top: true, fp: t => pose(t)[0].toArray(), ap: .005 },
+    { t0: 8.8, t1: 10.8, p0: [1.8, 9.8, 8.4], p1: [1, 9, 7.6], l0: [-4.5, 1.6, -.4], l1: [-4.5, 1, -.2], fov: [38, 38], ap: .004 },
+    { t0: 10.8, t1: 15, p0: [1.2, 26, .2], p1: [1, 24.5, .2], l0: [1.2, 0, .2], l1: [1, 0, .2], fov: [22, 22], top: true, ap: .0015 },
+  ]);
+  return {
+    S, dur: 15, overlay: bugHTML(),
+    update(t) {
+      const fall = seg(t, SLAM, SLAM + .45);
+      T.update(o => {
+        let y = 0; o.m.rotation.set(0, 0, 0);
+        if (o.hov) { const up = glide(seg(t, 6.3 + o.r * .7, 7.7 + o.r * .7)), down = t < SLAM ? 0 : E.inCubic(fall), k = up * (1 - down); y = k * (o.y1 + Math.sin(t * .7 + o.ph) * .2); o.m.rotation.set(o.rx * k, 0, o.rz * k); }
+        o.m.position.y = y + ripple(o.x, o.z, t, SLAM, -4.5, 0, .4, 14, 1.6);
+        if (o.neon) o.neon.opacity = .75 * (1 - .65 * glide(seg(t, 10.8, 11.8)));
+      });
+      const sk = seg(t, .8, 2.8); scan.position.x = lerp(-6.9, -2.1, glide(sk)); scan.material.opacity = Math.sin(sk * Math.PI) * .9;
+      tray.toggle(glide(seg(t, 2.6, 3.0))); tray.lid.position.y = 1.0 + lidDip(t);
+      pips.forEach((m, i) => { const k = glide(seg(t, 3.6 + i * .22, 4.0 + i * .22)); m.color.set(0x0f141f).lerp(new THREE.Color(C.violet), k); m.emissiveIntensity = k * .7; });
+      const pp = Math.sin(seg(t, 4.5, 4.85) * Math.PI), pm = Math.sin(seg(t, 5.1, 5.45) * Math.PI);
+      kPlus.press(pp); kPlus.light(Math.max(pp, t > 4.7 ? .5 : 0)); kMinus.press(pm); kMinus.light(Math.max(pm, t > 5.3 ? .5 : 0));
+      const ch = glide(seg(t, 5.8, 6.4)); bandMat.opacity = .15 + ch * .85 - (t > SLAM ? .4 * glide(seg(t, SLAM, SLAM + 1)) : 0); bodyMat.emissiveIntensity = ch * .08 + (t > SLAM ? .5 * Math.exp(-(t - SLAM) * 4) : 0);
+      const [p, tilt, flip] = pose(t); stamp.position.copy(p); stamp.rotation.set(flip + tilt, 0, 0);
+      imprint.position.set(-4.5, 1.0 + .135 + lidDip(t), 0); imprint.material.opacity = t < SLAM ? 0 : .95 * (1 - .4 * glide(seg(t, SLAM + .2, SLAM + 1.8)));
+      fbk.forEach((k, i) => { const q = Math.sin(seg(t, 1.0 + i * .18, 1.3 + i * .18) * Math.PI); k.press(q); k.light(q); });
+      const vk = seg(t, SLAM - .05, SLAM + .6); fxV.position.set(-4.5, 2.6, 2.2); fxV.material.opacity = Math.sin(vk * Math.PI) * .95;
+      const vs = seg(t, SLAM, SLAM + 1.2); shockV.position.set(-4.5, .03, 0); shockV.scale.setScalar(lerp(3, 16, E.outCubic(vs))); shockV.material.opacity = vs > 0 && vs < 1 ? (1 - vs) * .9 : 0;
+      cam(t, t > SLAM && t < 10.8 ? .2 * Math.exp(-(t - SLAM) * 7) : 0);
+    },
+    ov(t, q) { fade(q.bug, t, 12); },
+  };
+}
+
+/* =========================================================
+   3. ГАДЖЕТОТЕКА · 15 с — каталог гаджетов
+   Курсор проходит по отсекам, открывает стеклянный, геймпад поднимается,
+   раскладывается на детали, собирается и переезжает на пьедестал к титру.
+   ========================================================= */
+function buildGadget() {
+  const S = makeStage();
+  const T = makeTable(S, { seed: 31, res: [[-13.4, -7.1, 9.4, -1.9], [-6.2, 2.4, -2.8, 5.8], [-1.4, 1.9, 9.6, 6.6], [-12, 3, -7, 7]] });
+  const bays = [
+    { x: -11.6, z: -4.4, s: 2.6, kind: 'joystick' }, { x: -8.3, z: -4.7, s: 3.0, kind: 'headphones' }, { x: -4.8, z: -4.3, s: 2.6, kind: 'cartridge' },
+    { x: -.6, z: -4.5, s: 4.0, kind: 'gamepad', lid: true }, { x: 3.8, z: -4.4, s: 2.8, kind: 'handheld' }, { x: 7.4, z: -4.6, s: 2.8, kind: 'drone' },
+  ];
+  bays.forEach(b => {
+    const fl = mod(b.s, .12, b.s, { mat: 'deep', top: 'rings', r: b.s * .2 }); fl.position.set(b.x, 0, b.z); S.scene.add(fl);
+    const fr = new THREE.Mesh(ringGeo(b.s, b.s, b.s * .2, .22, .32), MAT.satin); fr.position.set(b.x, 0, b.z); fr.castShadow = fr.receiveShadow = true; S.scene.add(fr);
+    b.nm = neonMat(C.cyan, 2, .22); const nl = neonLoop(rrPts(b.s - .06, b.s - .06, b.s * .2), .345, .024, b.nm); nl.position.set(b.x, 0, b.z); S.scene.add(nl);
+    b.it = GADGETS[b.kind](); b.it.g.rotation.x = -Math.PI / 2; b.it.g.scale.setScalar(b.kind === 'gamepad' ? 1.2 : .95); b.it.g.position.set(b.x, .45, b.z); S.scene.add(b.it.g);
+  });
+  const gb = bays[3], gp = gb.it;
+  const lid = makeTray(S, V(gb.x, 0, gb.z), 4.4, 4.4, { lidY: .9, label: 'P1  SELECT' });
+  const cursor = new THREE.Mesh(ringGeo(1, 1, .3, .08, .05), glow(C.cyan, 2.2)); S.scene.add(cursor);
+  // пьедестал утоплен в прорезь — она видна с первого кадра
+  const slot = new THREE.Mesh(ringGeo(2.6, 2.6, .8, .16, .04), MAT.deep); slot.position.set(-4.5, 0, 4.1); S.scene.add(slot);
+  const slotN = neonMat(C.cyan, 2, .3), sln = neonLoop(rrPts(2.5, 2.5, .76), .07, .022, slotN); sln.position.set(-4.5, 0, 4.1); S.scene.add(sln);
+  const ped = mod(2.2, 1.4, 2.2, { mat: 'satin', top: 'dots', r: .62, neon: C.cyan, neonOp: .45 }); S.scene.add(ped);
+  // сноски, как на технической схеме: подписи деталей при раскладке
+  const callouts = [[1, 'L-STICK', -1.4, .9], [2, 'R-STICK', 1.4, .9], [3, 'D-PAD', -1.5, -.4], [4, 'ACTION', 1.6, -.4], [8, 'TOUCHPAD', 0, -1.4], [11, 'L1', -1.7, -1.3], [12, 'R1', 1.7, -1.3]].map(([pi, txt, ox, oz]) => {
+    const tex = cnv(512, 96, g => { g.font = `600 46px ${MONO}`; g.fillStyle = '#00D9FF'; g.fillText(txt, 14, 58); g.fillRect(14, 72, 26 * txt.length + 20, 3); });
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false, depthTest: false, toneMapped: false })); sp.scale.set(2.2, .42, 1); S.scene.add(sp);
+    const lg = new THREE.BufferGeometry().setFromPoints([V(0, 0, 0), V(0, 0, 0)]), ln = new THREE.Line(lg, new THREE.LineBasicMaterial({ color: new THREE.Color(C.cyan).multiplyScalar(1.6), transparent: true, opacity: 0, toneMapped: false })); S.scene.add(ln);
+    return { pi, sp, ln, ox, oz };
+  });
+  const _w = V(0, 0, 0);
+  const emb = makeText([{ s: 'ГАДЖЕТЫ', c: '#2a3650', side: '#141b29' }], { h: 1.3, layers: 5, depth: .05, emi: 0, glowTop: false, noShadow: true, skew: -.08 }); emb.g.position.set(-9.6, 0, 5.2); emb.g.rotation.y = Math.PI / 2; emb.show(1); S.scene.add(emb.g);
+  hairline(S, -13, -1.6, 9.2, -1.6); hairline(S, -1.2, 1.7, 9.4, 1.7); hairline(S, -2.6, 2.6, -2.6, 6.4);
+  const TP = titlePair(S, V(4.1, 0, 3.7), 'ГАДЖЕТ', 'ОТЕКА', { h: 1.0, stagger: 0, gap: 0, lw: 6.6, c1: '#00D9FF', s1: '#00788f', sh: .36, sub: 'НЕОБЫЧНЫЕ ГАДЖЕТЫ ЧЕЛОВЕЧЕСТВА' });
+  const path = [0, 1, 2, 3].map(i => [bays[i].x, bays[i].z]), sizes = [0, 1, 2, 3].map(i => bays[i].s + .4);
+  const G0 = V(gb.x, .45, gb.z), G1 = V(gb.x, 2.9, gb.z), G2 = V(-4.5, 3.4, 4.1), PH = 1.4;
+  const gpPos = t => {
+    if (t < 5.9) return G0;
+    if (t < 6.8) { const k = glide(seg(t, 5.9, 6.8)); return V(G0.x, lerp(G0.y, G1.y, k), G0.z); }
+    if (t < 9.1) return V(G1.x, G1.y + Math.sin((t - 6.8) * 1.2) * .1, G1.z);
+    if (t < 10.4) { const k = glide(seg(t, 9.1, 10.4)); return V(lerp(G1.x, G2.x, k), lerp(G1.y, G2.y, k) + Math.sin(k * Math.PI) * .6, lerp(G1.z, G2.z, k)); }
+    const k = glide(seg(t, 10.5, 11.3)); return V(G2.x, lerp(G2.y, PH + .3, k), G2.z);
+  };
+  const cam = shots(S, [
+    { t0: 0, t1: 3.2, p0: [-15.5, 7, 1.8], p1: [-8.5, 6.4, 1.2], l0: [-11.2, 0, -4.5], l1: [-4.2, 0, -4.5], fov: [34, 33], roll: [-2, 0], ap: .006 },
+    { t0: 3.2, t1: 5.9, p0: [-6.8, 14, -4.4], p1: [-2.4, 13.2, -4.4], l0: [-6.8, 0, -4.39], l1: [-2.4, 0, -4.39], fov: [34, 34], top: true, ap: .004 },
+    { t0: 5.9, t1: 8.9, fn: (k, t) => { const a = lerp(-.8, .5, k), p = gpPos(t); return [[p.x + Math.sin(a) * 7.4, 7.4, p.z + Math.cos(a) * 7.4], [p.x, p.y + .35, p.z]]; }, fov: [34, 34], fp: t => gpPos(t).toArray(), ap: .009 },
+    { t0: 8.9, t1: 11.4, fn: (k, t) => { const p = gpPos(t); return [[lerp(4.6, 1.4, k), lerp(8.2, 7.4, k), lerp(5.6, 9.4, k)], [p.x, p.y * .45, p.z]]; }, fov: [36, 36], fp: t => gpPos(t).toArray(), ap: .006 },
+    { t0: 11.4, t1: 15, p0: [.6, 25.5, 2.5], p1: [.4, 24, 2.5], l0: [.6, 0, 2.5], l1: [.4, 0, 2.5], fov: [22, 22], top: true, ap: .0015 },
+  ]);
+  return {
+    S, dur: 15, overlay: bugHTML(),
+    update(t) {
+      T.update(o => { o.m.position.y = ripple(o.x, o.z, t, 11.3, -4.5, 4.1, .14, 8); if (o.neon) o.neon.opacity = .75 * (1 - .65 * glide(seg(t, 11.2, 12.2))); });
+      // курсор скользит от отсека к отсеку
+      let ci = 0, k = 0; [3.4, 4.0, 4.6].forEach((ts, i) => { const q = glide(seg(t, ts, ts + .45)); if (q > 0) { ci = i; k = q; } });
+      const a = path[ci], b = path[Math.min(3, ci + 1)], sa = sizes[ci], sb = sizes[Math.min(3, ci + 1)];
+      const cs = lerp(sa, sb, k), vis = glide(seg(t, 3.1, 3.4)) * (1 - glide(seg(t, 5.6, 6.0)));
+      cursor.position.set(lerp(a[0], b[0], k), .36 + (bays[ci].lid || (k > .5 && bays[Math.min(3, ci + 1)].lid) ? .72 : 0), lerp(a[1], b[1], k)); cursor.scale.set(cs * Math.max(1e-4, vis), 1, cs * Math.max(1e-4, vis));
+      lid.toggle(glide(seg(t, 5.1, 5.4)));
+      const lk = glide(seg(t, 5.3, 6.1)); lid.lid.position.set(lk * 4.6, .9 + Math.sin(lk * Math.PI) * .5 + lk * .5, 0);
+      const p = gpPos(t); gp.g.position.copy(p); gp.g.rotation.set(-Math.PI / 2 + glide(seg(t, 6.0, 6.8)) * (Math.PI / 2 - .32) * (1 - glide(seg(t, 9.6, 10.9))), Math.sin(t * .5) * .12 * glide(seg(t, 6, 6.8)) * (1 - glide(seg(t, 9.6, 10.9))), 0);
+      const ex = glide(seg(t, 6.9, 7.6)) * (1 - glide(seg(t, 8.4, 9.0)));
+      gp.parts.forEach(q => q.m.position.copy(q.base).addScaledVector(q.v, ex * .6));
+      gp.g.updateMatrixWorld(true);
+      const co = glide(seg(t, 7.4, 7.8)) * (1 - glide(seg(t, 8.2, 8.5)));
+      callouts.forEach(c => { gp.parts[c.pi].m.getWorldPosition(_w); const lp = V(_w.x + c.ox * .8, _w.y + .5 - c.oz * .5, _w.z + .3); c.sp.position.copy(lp); c.sp.material.opacity = co; const a = c.ln.geometry.attributes.position; a.setXYZ(0, _w.x, _w.y, _w.z); a.setXYZ(1, lp.x, lp.y - .2, lp.z); a.needsUpdate = true; c.ln.material.opacity = co * .9; });
+      bays.forEach((b, i) => { const cx = cursor.position.x, cz = cursor.position.z, near = vis > .01 ? clamp(1 - Math.hypot(cx - b.x, cz - b.z) / 1.6) : 0; b.nm.opacity = .22 + .7 * Math.max(near, i === 3 ? glide(seg(t, 4.9, 5.3)) * (1 - glide(seg(t, 9.2, 10))) : 0); });
+      slotN.opacity = .3 + .7 * glide(seg(t, 9.3, 9.8));
+      ped.position.set(-4.5, -PH + PH * glide(seg(t, 9.6, 10.6)), 4.1);
+      TP.update(t, 11.8);
+      cam(t);
+    },
+    ov(t, q) { fade(q.bug, t, 12); },
+  };
+}
+
+/* =========================================================
+   4. ОТБИВКА · 5 с — поток пикселей собирает планку, знак E загорается
+   ========================================================= */
+/* ---------- рельеф в стиле референса: металлические доски, вырезанные фигуры, свет в стенках выреза ---------- */
+const PC = window.polygonClipping;
+const NB = 28;
+const ringArea = ring => { let a = 0; for (let i = 0, n = ring.length; i < n; i++) { const p = ring[i], q = ring[(i + 1) % n]; a += p[0] * q[1] - q[0] * p[1]; } return a / 2; };
+const inRing = (pt, ring) => { let c = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const a = ring[i], b = ring[j]; if ((a[1] > pt[1]) !== (b[1] > pt[1]) && pt[0] < (b[0] - a[0]) * (pt[1] - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+const openRing = r => (r.length > 2 && r[0][0] === r[r.length - 1][0] && r[0][1] === r[r.length - 1][1]) ? r.slice(0, -1) : r;
+const mpClean = mp => mp.map(poly => poly.map(openRing));
+// контуры любой ориентации → мультиполигон: дырки определяются по чётности вложенности
+function nest(rings) {
+  const info = rings.map(openRing).filter(r => r.length > 2).map(r => ({ r, a: Math.abs(ringArea(r)) }));
+  info.forEach(o => { o.par = info.filter(q => q !== o && q.a > o.a && inRing(o.r[0], q.r)); o.d = o.par.length; });
+  const polys = info.filter(o => o.d % 2 === 0).map(o => ({ o, holes: [] }));
+  info.filter(o => o.d % 2 === 1).forEach(h => { const p = h.par.filter(q => q.d === h.d - 1).sort((a, b) => a.a - b.a)[0]; const P = polys.find(x => x.o === p); if (P) P.holes.push(h.r); });
+  return polys.map(P => [P.o.r, ...P.holes]);
+}
+const mapMP = (mp, f) => mp.map(poly => poly.map(ring => ring.map(f)));
+const moveMP = (mp, dx, dy, s = 1) => mapMP(mp, p => [p[0] * s + dx, p[1] * s + dy]);
+const rotMP = (mp, a) => { const c = Math.cos(a), s = Math.sin(a); return mapMP(mp, p => [p[0] * c - p[1] * s, p[0] * s + p[1] * c]); };
+function bboxMP(mp) { let a = 1e9, b = 1e9, c = -1e9, d = -1e9; mp.forEach(P => P.forEach(R => R.forEach(p => { a = Math.min(a, p[0]); b = Math.min(b, p[1]); c = Math.max(c, p[0]); d = Math.max(d, p[1]); }))); return [a, b, c, d]; }
+const vecs = ring => ring.map(p => new THREE.Vector2(p[0], p[1]));
+const shapeOf = poly => { const s = new THREE.Shape(vecs(poly[0])); poly.slice(1).forEach(h => s.holes.push(new THREE.Path(vecs(h)))); return s; };
+const ptsMP = (pts, close = true) => [[pts.map(p => [p.x, p.y])]];
+const circleRing = (cx, cy, r, n = 48) => Array.from({ length: n }, (_, i) => [cx + Math.cos(i / n * Math.PI * 2) * r, cy + Math.sin(i / n * Math.PI * 2) * r]);
+const rectRing = (cx, cy, w, h, a = 0) => { const c = Math.cos(a), s = Math.sin(a); return [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]].map(([x, y]) => [cx + x * c - y * s, cy + x * s + y * c]); };
+// толстая ломаная → полигон (канавка-дорожка)
+function strokeMP(pts, w) {
+  const parts = [];
+  for (let i = 1; i < pts.length; i++) { const [a, b] = [pts[i - 1], pts[i]], L = Math.hypot(b[0] - a[0], b[1] - a[1]); parts.push([rectRing((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, L, w, Math.atan2(b[1] - a[1], b[0] - a[0]))]); }
+  pts.forEach(p => parts.push([circleRing(p[0], p[1], w / 2, 16)]));
+  return mpClean(PC.union(...parts.map(p => [p])));
+}
+// плита по плану (x, y) → мир (x, высота, −y), фаска внутрь контура
+function slab(poly, y0, y1, bev = .05, curve = 4) {
+  const bt = Math.min(bev, (y1 - y0) / 3);
+  const g = new THREE.ExtrudeGeometry(shapeOf(poly), { depth: Math.max(.001, y1 - y0 - 2 * bt), bevelEnabled: bev > 0, bevelThickness: bt, bevelSize: bev, bevelOffset: -bev, bevelSegments: 3, curveSegments: curve });
+  g.rotateX(-Math.PI / 2); g.translate(0, y0 + bt, 0); return topAttr(g, y1);
+}
+function topAttr(g, y1) { g.setAttribute('aTop', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count).fill(y1), 1)); return g; }
+// путь по контуру для бегущих импульсов
+function pathOf(ring, closed = true) {
+  const pts = closed ? [...ring, ring[0]] : ring, L = [0];
+  for (let i = 1; i < pts.length; i++) L.push(L[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const T = L[L.length - 1];
+  return {
+    T, pts, at(s) {
+      s = closed ? ((s % T) + T) % T : clamp(s, 0, T);
+      let lo = 1, hi = L.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (L[m] < s) lo = m + 1; else hi = m; }
+      const k = (s - L[lo - 1]) / ((L[lo] - L[lo - 1]) || 1); return [lerp(pts[lo - 1][0], pts[lo][0], k), lerp(pts[lo - 1][1], pts[lo][1], k)];
+    },
+  };
+}
+// импульс: светящийся отрезок длиной len, голова в точке s пути
+function pulse(path, s, len, w, rad = .7, n = 6) {
+  const out = []; if (w <= 0) return out;
+  for (let i = 0; i < n; i++) { const k = i / (n - 1), p = path.at(s - k * len); out.push([p[0], p[1], rad, w * Math.pow(1 - k, .8) * (i === 0 ? 1.15 : 1)]); }
+  return out;
+}
+
+/* шрифт → полигоны: буквы режутся в металле так же, как знак */
+// Unbounded 800, кириллица (@fontsource/unbounded 5.3.0, OFL) — встроен, чтобы буквы резались без сети
+const FONT_B64 = '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';
+const FONT = (() => { try { const bin = atob(FONT_B64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return opentype.parse(u.buffer); } catch (e) { return null; } })();
+function textMP(str, cap, { track = 0, cx = 0, cy = 0, align = 'center' } = {}) {
+  if (!FONT) return null;
+  const size = cap / .75, sc = size / FONT.unitsPerEm, gl = FONT.stringToGlyphs(str), rings = [];
+  let x = 0;
+  gl.forEach((g, i) => {
+    const cmds = g.getPath(x, 0, size).commands; let cur = null, lx = 0, ly = 0;
+    const put = (px, py) => { cur.push([px, -py]); lx = px; ly = py; };
+    for (const c of cmds) {
+      if (c.type === 'M') { cur = []; rings.push(cur); put(c.x, c.y); }
+      else if (c.type === 'L') put(c.x, c.y);
+      else if (c.type === 'Q') { const x0 = lx, y0 = ly; for (let k = 1; k <= 6; k++) { const t = k / 6, u = 1 - t; put(u * u * x0 + 2 * u * t * c.x1 + t * t * c.x, u * u * y0 + 2 * u * t * c.y1 + t * t * c.y); } }
+      else if (c.type === 'C') { const x0 = lx, y0 = ly; for (let k = 1; k <= 8; k++) { const t = k / 8, u = 1 - t; put(u * u * u * x0 + 3 * u * u * t * c.x1 + 3 * u * t * t * c.x2 + t * t * t * c.x, u * u * u * y0 + 3 * u * u * t * c.y1 + 3 * u * t * t * c.y2 + t * t * t * c.y); } }
+    }
+    x += g.advanceWidth * sc + (gl[i + 1] ? FONT.getKerningValue(g, gl[i + 1]) * sc : 0) + track * cap;
+  });
+  let mp = mpClean(PC.union(...nest(rings).map(p => [p])));
+  const [a, b, c, d] = bboxMP(mp), ox = align === 'left' ? -a : -(a + c) / 2;
+  mp = moveMP(mp, ox + cx, -cap / 2 + cy);
+  mp.w = c - a; mp.h = d - b; return mp;
+}
+
+/* маска свечения: 4 канала, у каждого свой цвет и уровень. Рисуется по плану, читается шейдером по мировым x/z */
+function maskTex(box, groups, res) {
+  const [x0, y0, x1, y1] = box, W = Math.ceil((x1 - x0) * res), H = Math.ceil((y1 - y0) * res);
+  const ch = [0, 1, 2, 3].map(k => {
+    const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+    groups.filter(q => (q.ch ?? 0) === k).forEach(q => {
+      const P = new Path2D(); q.poly.forEach(pg => pg.forEach(ring => { ring.forEach((p, i) => i ? P.lineTo((p[0] - x0) * res, (p[1] - y0) * res) : P.moveTo((p[0] - x0) * res, (p[1] - y0) * res)); P.closePath(); }));
+      g.save(); g.filter = `blur(${(q.blur ?? .22) * res}px)`;
+      g.fillStyle = `rgba(255,255,255,${q.fill ?? .45})`; g.fill(P, 'evenodd');
+      g.lineWidth = (q.stroke ?? .32) * res; g.strokeStyle = '#fff'; g.lineJoin = 'round'; g.stroke(P); g.restore();
+    });
+    return g.getImageData(0, 0, W, H).data;
+  });
+  const data = new Uint8Array(W * H * 4);
+  for (let i = 0; i < W * H; i++) for (let k = 0; k < 4; k++) data[i * 4 + k] = ch[k][i * 4 + 3];
+  const t = new THREE.DataTexture(data, W, H); t.magFilter = t.minFilter = THREE.LinearFilter; t.needsUpdate = true; return t;
+}
+function glowUniforms(box, groups, cols, res = 22, yr = [-1, 0]) {
+  return {
+    gM: { value: maskTex(box, groups, res) }, gBox: { value: new THREE.Vector4(box[0], box[1], box[2] - box[0], box[3] - box[1]) },
+    gL: { value: new THREE.Vector4() }, gY: { value: new THREE.Vector2(...yr) },
+    gC: { value: [0, 1, 2, 3].map(i => new THREE.Color(cols[i] ?? cols[0])) },
+    gB: { value: Array.from({ length: NB }, () => new THREE.Vector4()) },
+    gK: { value: 1 }, gF: { value: new THREE.Vector4(1, 1, 1, 1) }, gW: { value: new THREE.Vector4(1, 1, 1, 1) }, gFB: { value: 1 },
+  };
+}
+// стенки выреза светятся у верхней кромки и гаснут книзу; дно выреза светится ровно
+function glowMat(o, U, kind, local = false) {
+  const m = new THREE.MeshStandardMaterial(o);
+  m.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = 'attribute float aTop; varying vec3 vG; varying vec2 vT;\n' + sh.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>\n vG = ${local ? 'transformed' : '(modelMatrix * vec4(transformed, 1.0)).xyz'}; vT = vec2(transformed.y, aTop);`);
+    sh.fragmentShader = `varying vec3 vG; varying vec2 vT; uniform sampler2D gM; uniform vec4 gBox; uniform vec4 gL; uniform vec3 gC[4]; uniform vec2 gY; uniform vec4 gB[${NB}]; uniform float gK; uniform vec4 gF; uniform vec4 gW; uniform float gFB;\n` +
+      sh.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      { vec2 pl = vec2(vG.x, -vG.z); vec2 uv = (pl - gBox.xy) / gBox.zw;
+        vec4 mk = (uv.x < 0. || uv.y < 0. || uv.x > 1. || uv.y > 1.) ? vec4(0.) : texture2D(gM, uv);
+        float bl = 0.; for (int i = 0; i < ${NB}; i++) { vec2 d = pl - gB[i].xy; bl += gB[i].w * exp(-dot(d, d) / max(1e-4, gB[i].z * gB[i].z)); }
+        float y = clamp((vT.x - gY.x) / max(.01, vT.y - gY.x), 0., 1.);
+        float prof = ${kind === 0 ? '.025 + .16 * pow(y, 4.) + 2.1 * pow(y, 26.)' : '.12'};
+        vec4 k = mk * ${kind === 1 ? '(gL * gF + bl * gFB)' : '(gL + bl) * gW'} * prof * gK;
+        totalEmissiveRadiance += gC[0] * k.r + gC[1] * k.g + gC[2] * k.b + gC[3] * k.a; }`);
+  };
+  m.customProgramCacheKey = () => `glow${kind}${local ? 'L' : 'W'}${NB}`;
+  return m;
+}
+function setBlobs(U, list) { const a = U.gB.value; for (let i = 0; i < NB; i++) { const b = list[i]; if (b) a[i].set(b[0], b[1], b[2], b[3]); else a[i].set(0, 0, 1, 0); } }
+
+/* доски: полосы под углом theta с поперечными стыками, у каждой своя высота */
+function clipHalf(poly, a, b, c) { // оставить a·x + b·y ≤ c
+  const out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const P = poly[i], Q = poly[(i + 1) % poly.length], dp = a * P[0] + b * P[1] - c, dq = a * Q[0] + b * Q[1] - c;
+    if (dp <= 0) out.push(P);
+    if ((dp < 0 && dq > 0) || (dp > 0 && dq < 0)) { const k = dp / (dp - dq); out.push([P[0] + (Q[0] - P[0]) * k, P[1] + (Q[1] - P[1]) * k]); }
+  }
+  return out;
+}
+function plankPolys({ box, theta, seed, spacing = [2.6, 5.6], run = [9, 22], gap = .06, tilt = .45 }) {
+  const r = rng(seed), [x0, y0, x1, y1] = box, rect = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+  const u = [Math.cos(theta), Math.sin(theta)], n = [-u[1], u[0]], pr = v => rect.map(p => p[0] * v[0] + p[1] * v[1]);
+  const n0 = Math.min(...pr(n)), n1 = Math.max(...pr(n)), u0 = Math.min(...pr(u)), u1 = Math.max(...pr(u)), out = [];
+  for (let a = n0; a < n1;) {
+    const b = a + lerp(spacing[0], spacing[1], r()), lines = [];
+    for (let s = u0 - r() * run[1]; s < u1 + run[1]; s += lerp(run[0], run[1], r())) {
+      const t = (r() < .45 ? (r() - .5) * 2 * tilt : 0), m = [Math.cos(theta + t), Math.sin(theta + t)];
+      // точка на оси полосы, через которую проходит стык
+      const mid = (a + b) / 2, px = u[0] * s + n[0] * mid, py = u[1] * s + n[1] * mid;
+      lines.push({ m, c: m[0] * px + m[1] * py });
+    }
+    for (let i = 1; i < lines.length; i++) {
+      const A = lines[i - 1], B = lines[i];
+      let p = clipHalf(rect, -n[0], -n[1], -(a + gap / 2)); p = clipHalf(p, n[0], n[1], b - gap / 2);
+      p = clipHalf(p, -A.m[0], -A.m[1], -(A.c + gap / 2)); p = clipHalf(p, B.m[0], B.m[1], B.c - gap / 2);
+      if (p.length >= 3 && Math.abs(ringArea(p)) > .3) out.push({ ring: p, r: r(), c: p.reduce((s, q) => [s[0] + q[0] / p.length, s[1] + q[1] / p.length], [0, 0]) });
+    }
+    a = b;
+  }
+  return out;
+}
+const PLANK_TONES = [0x1d2533, 0x202938, 0x1a212e];
+function makeRelief(S, o) {
+  const { skipFloor = [], box, theta = .42, seed = 1, D = 1, glyphs = [], steps = [0, 0, 0, .09, -.07, .16], flat = [], cols = [C.cyan], res = 22, tone = 0 } = o;
+  const r = rng(seed + 99), cut = glyphs.filter(g => g.cut !== false).map(g => g.poly);
+  const gb = glyphs.length ? glyphs.map(g => bboxMP(g.poly)).reduce((a, b) => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])]) : [0, 0, 1, 1];
+  const mbox = [gb[0] - 2, gb[1] - 2, gb[2] + 2, gb[3] + 2];
+  const U = glowUniforms(mbox, glyphs, cols, res, [-D, 0]);
+  const caps = PLANK_TONES.map((c, i) => new THREE.MeshStandardMaterial({ color: new THREE.Color(c).offsetHSL(0, 0, tone), metalness: .72, roughness: [.44, .5, .56][i], envMapIntensity: 1 }));
+  const side = glowMat({ color: 0x1b2230, metalness: .7, roughness: .5, envMapIntensity: 1 }, U, 0);
+  const pieces = [];
+  plankPolys({ box, theta, seed, ...(o.planks || {}) }).forEach(pk => {
+    const xs = pk.ring.map(q => q[0]), ys = pk.ring.map(q => q[1]), bb = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+    const h = flat.some(f => bb[0] < f[2] && bb[2] > f[0] && bb[1] < f[3] && bb[3] > f[1]) ? 0 : pick(r, steps);
+    const parts = cut.length ? mpClean(PC.difference([pk.ring], ...cut)) : [[pk.ring]];
+    const mat = [caps[Math.floor(pk.r * 3)], side];
+    parts.forEach(poly => {
+      if (Math.abs(ringArea(poly[0])) < .04) return;
+      const m = new THREE.Mesh(slab(poly, -D - .25, h), mat); m.castShadow = m.receiveShadow = true; S.scene.add(m);
+      pieces.push({ m, h, x: pk.c[0], y: pk.c[1] });
+    });
+  });
+  // дно выреза — тоже доски, их швы продолжают швы поверхности
+  const floorM = glowMat({ color: 0x1a212d, metalness: .7, roughness: .52, envMapIntensity: .9 }, U, 1), mring = [[mbox[0], mbox[1]], [mbox[2], mbox[1]], [mbox[2], mbox[3]], [mbox[0], mbox[3]]];
+  const fside = new THREE.MeshStandardMaterial({ color: 0x0c1018, metalness: .6, roughness: .6 });
+  plankPolys({ box, theta, seed, ...(o.planks || {}) }).forEach(pk => {
+    let fp = PC.intersection([pk.ring], [mring]); if (skipFloor.length && fp.length) fp = PC.difference(fp, ...skipFloor);
+    mpClean(fp).forEach(poly => { const m = new THREE.Mesh(slab(poly, -D - .4, -D, .025), [floorM, fside]); m.receiveShadow = true; S.scene.add(m); });
+  });
+  (o.inserts || []).forEach(q => { const m = new THREE.Mesh(slab([rectRing((q.box[0] + q.box[2]) / 2, (q.box[1] + q.box[3]) / 2, q.box[2] - q.box[0], q.box[3] - q.box[1])], -D - .2, q.y, .02), [floorM, fside]); m.receiveShadow = true; S.scene.add(m); });
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(box[2] - box[0], box[3] - box[1]), new THREE.MeshBasicMaterial({ color: 0x030408 }));
+  back.rotation.x = -Math.PI / 2; back.position.set((box[0] + box[2]) / 2, -D - .38, -(box[1] + box[3]) / 2); S.scene.add(back);
+  return { U, pieces, D, side, floorM, caps, levels(a = 0, b = 0, c = 0, d = 0) { U.gL.value.set(a, b, c, d); }, blobs(list) { setBlobs(U, list); } };
+}
+// тёмная металлическая заглушка: деталь, вставленная в вырез (поднимается, опускается)
+function plugGeo(mp, y0, y1, inset = .06, bev = .03) {
+  const geos = mp.map(poly => {
+    const bt = Math.min(bev, (y1 - y0) / 3);
+    const g = new THREE.ExtrudeGeometry(shapeOf(poly), { depth: Math.max(.001, y1 - y0 - 2 * bt), bevelEnabled: true, bevelThickness: bt, bevelSize: bev, bevelOffset: -inset - bev, bevelSegments: 2, curveSegments: 4 });
+    g.rotateX(-Math.PI / 2); g.translate(0, y0 + bt, 0); return topAttr(g, y1);
+  });
+  return geos.length === 1 ? geos[0] : mergeGeometries(geos, false);
+}
+// знак Е в плане: центр в (cx, cy), высота знака = LG.H·s
+function eMP(s, cx = 0, cy = 0) { return [[LOGO_PTS.map(p => [(p.x - LG.W / 2) * s + cx, p.y * s + cy])]].map(P => P.map(openRing)); }
+
+/* окружение для атласного металла: тёмная комната, один большой софтбокс низко сбоку и мягкий потолок */
+function sheenEnv() {
+  const s = new THREE.Scene(), add = (w, h, col, k, pos) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(k), side: THREE.DoubleSide })); m.position.set(...pos); m.lookAt(0, 0, 0); s.add(m); };
+  s.add(new THREE.Mesh(new THREE.SphereGeometry(60, 32, 16), new THREE.MeshBasicMaterial({ color: 0x06080d, side: THREE.BackSide })));
+  add(70, 50, 0xc9d6ea, 1.25, [-14, 44, -18]);
+  add(80, 12, 0xdfe8f5, 1.6, [-26, 9, -40]);
+  add(50, 10, 0x8fa3bf, .7, [40, 12, -10]);
+  add(40, 8, 0x5a6b85, .5, [-30, 8, 34]);
+  return pmrem.fromScene(s, .035).texture;
+}
+const ENV2 = sheenEnv();
+
+/* сцена в стиле референса */
+function makeStage2(o = {}) {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x090d15);
+  scene.fog = new THREE.Fog(0x090d15, o.fog?.[0] ?? 30, o.fog?.[1] ?? 80);
+  scene.environment = ENV2;
+  const hemi = new THREE.HemisphereLight(0x9fb2cf, 0x05070b, .25); scene.add(hemi);
+  const key = new THREE.DirectionalLight(0xe6eefc, 1.6);
+  key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
+  Object.assign(key.shadow.camera, { left: -22, right: 22, top: 22, bottom: -22, near: .5, far: 90 });
+  key.shadow.radius = 8; key.shadow.blurSamples = 10; key.shadow.bias = -.0005;
+  scene.add(key, key.target);
+  const cam = new THREE.PerspectiveCamera(35, 16 / 9, .1, 200);
+  return { scene, cam, key, hemi, focus: 10, ap: .002 };
+}
+// камера вокруг цели: d — дистанция, az — азимут от +z, el — возвышение, roll — крен (в градусах)
+function aim(S, T, d, az, el, roll = 0, fov = 35, ap = .002) {
+  const A = az * Math.PI / 180, El = el * Math.PI / 180, ce = Math.cos(El), cam = S.cam;
+  cam.position.set(T[0] + d * ce * Math.sin(A), T[1] + d * Math.sin(El), T[2] + d * ce * Math.cos(A));
+  cam.up.set(-Math.sin(A), 0, -Math.cos(A));
+  cam.lookAt(T[0], T[1], T[2]);
+  if (roll) cam.rotateZ(roll * Math.PI / 180);
+  if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
+  S.focus = d; S.ap = ap;
+  // ключевой свет — сзади слева и сверху относительно кадра, тени от ступенек досок тянутся к зрителю
+  S.key.position.set(T[0] - 14 * Math.sin(A) - 8 * Math.cos(A), 16, T[2] - 14 * Math.cos(A) + 8 * Math.sin(A));
+  S.key.target.position.set(T[0], 0, T[2]);
+}
+// мир ↔ план
+const W3 = (x, y, h = 0) => [x, h, -y];
+
+/* ---------- плавная проводка камеры по ключам (Эрмит, без остановок между ключами) ---------- */
+function track(keys) {
+  return t => {
+    if (t <= keys[0][0]) return keys[0][1].slice();
+    if (t >= keys[keys.length - 1][0]) return keys[keys.length - 1][1].slice();
+    let i = 0; while (i < keys.length - 2 && t > keys[i + 1][0]) i++;
+    const [t1, p1] = keys[i], [t2, p2] = keys[i + 1], dt = t2 - t1, u = (t - t1) / dt;
+    const tan = (j, a, b) => { const A = keys[Math.max(0, a)], B = keys[Math.min(keys.length - 1, b)]; return A === B ? 0 : (B[1][j] - A[1][j]) / (B[0] - A[0]); };
+    const h00 = 2 * u ** 3 - 3 * u ** 2 + 1, h10 = u ** 3 - 2 * u ** 2 + u, h01 = -2 * u ** 3 + 3 * u ** 2, h11 = u ** 3 - u ** 2;
+    return p1.map((v, j) => {
+      const m1 = i === 0 ? 0 : tan(j, i - 1, i + 1), m2 = i + 1 === keys.length - 1 ? 0 : tan(j, i, i + 2);
+      return h00 * v + h10 * dt * m1 + h01 * p2[j] + h11 * dt * m2;
+    });
+  };
+}
+const capHTML = s => `<div class="cap" data-k="cap">${s}</div>`;
+
+/* ---------- отбивка: знак Е вырезан в металлическом полу, свет бежит по кромкам ---------- */
+function buildBumper() {
+  const S = makeStage2();
+  const E1 = eMP(7, 0, 0);
+  const R = makeRelief(S, { box: [-70, -46, 70, 46], theta: .42, seed: 11, D: .85, glyphs: [{ poly: E1, ch: 0, stroke: .34, fill: .12, blur: .2 }], cols: [C.cyan] });
+  const P = pathOf(E1[0][0]);
+  // камера: [x, y, h, d, az, el, roll, fov] — от кромки средней планки знака на общий план
+  const cam = track([
+    [0, [-3.2, -2.2, -.3, 9.5, -38, 33, -13, 32]],
+    [1.1, [-2.6, -1.8, -.25, 10.8, -33, 37, -10, 32]],
+    [2.6, [1.2, .05, -.1, 15.5, -33, 48, -3, 33]],
+    [5, [-.9, -.6, 0, 18.5, -20, 56, 4, 33]],
+  ]);
+  return {
+    S, dur: 5, overlay: bugHTML() + capHTML('РЕКЛАМА'),
+    update(t) {
+      R.levels(.62 + .08 * Math.sin(t * 2.1));
+      const T = P.T, w1 = 2.4 * seg(t, .2, .9), w2 = 2.4 * seg(t, 1.7, 2.4);
+      R.blobs([
+        ...pulse(P, T * .62 + t * 7.2, 4.6, w1, .75, 7),
+        ...pulse(P, T * .08 + (t - 1.7) * 7.2, 4.6, w2, .75, 7),
+        ...pulse(P, T * .36 + (t - 3.1) * 6.4, 3.6, 2 * seg(t, 3.1, 3.7), .7, 6),
+      ]);
+      const [x, y, h, d, az, el, roll, fov] = cam(t);
+      aim(S, W3(x, y, h), d, az, el, roll, fov, .0026);
+    },
+    ov(t, el) { if (el.bug) el.bug.style.opacity = 1; if (el.cap) el.cap.style.opacity = 1; },
+  };
+}
+
+/* ---------- pieces & UI ---------- */
+const PIECES = [
+  { id: 'ident', name: 'Заставка канала', build: buildIdent, accent: '#00D9FF', dur: 15,
+    pal: [['#1C2638', 'Поверхность'], ['#080A0F', 'Тёмные модули, фон'], ['#00D9FF', 'Знак E, свет, линии'], ['#BCD0E6', 'Матовое стекло']],
+    text: ['Ролик построен вокруг буквы E. Знак разделён на две части: тёмный корпус лежит на столе, а центральная планка из матового стекла стоит на вершине ступеней. Всё начинается с нажатия кнопки ✕ на встроенной в стол панели кнопок геймпада с надписью PRESS START: от кнопки прочерчивается свет, бежит по рёбрам ступеней, и планка загорается циановым.', 'Загоревшаяся планка поднимается, и вместе с ней в воздух поднимается часть плит стола. Планка опускается на дорожку и едет к знаку, а сбоку заполняется полоса загрузки уровня. Под стеклом сканера PLAYER 1 щёлкает тумблер, плиты возвращаются на место. Планка встаёт в паз, по знаку прокатывается цвет, на кнопках звучит комбо △ ○ □. Финал сверху: циановый знак E, навстречу друг другу въезжают слова «ИГРОВОЙ» и «КАНАЛ».'],
+    meta: [['Хронометраж', '15 с · 450 кадров'], ['Камера', '5 планов одного стола: ступени сверху сбоку, подъём планки строго сверху, сканер сверху, низкий макро у паза, финал сверху'], ['Звук', 'Тонкий звон бегущего света, гул подъёма, проход сканера, механический щелчок замка, низкий акцент при заливке знака']],
+    beats: [[0, 'Нажатие ✕ — PRESS START'], [.95, 'Свет бежит по рёбрам ступеней'], [2.6, 'Планка знака загорается'], [3.4, 'Планка поднимается, вместе с ней взлетают плиты'], [5.2, 'Планка опускается на дорожку'], [6.4, 'Полоса загрузки, проход под стеклом сканера'], [8.4, 'Плиты возвращаются на место'], [9, 'Планка въезжает в корпус E'], [10.6, 'Замок, цвет заливает знак, комбо △ ○ □'], [12.6, '«ИГРОВОЙ» и «КАНАЛ» въезжают навстречу']] },
+  { id: 'verdict', name: '«Вердикт»', build: buildVerdict, accent: '#7A35FF', dur: 15,
+    pal: [['#7A35FF', 'Скан, шкала, печать'], ['#1C2638', 'Поверхность'], ['#080A0F', 'Лоток, шкала'], ['#BCD0E6', 'Матовое стекло']],
+    text: ['Под матовым стеклом лежит картридж с игрой, под ним проходит фиолетовая линия скана, щёлкает тумблер. По шкале SCORE из десяти делений набирается оценка, нажимаются кнопки «плюс» и «минус», как на геймпаде. Рядом лежит большая печать лицом вниз, её фиолетовый пояс заряжается.', 'Печать поднимается, вместе с ней взлетают плиты. Она перелетает к лотку и резко бьёт по стеклу: лоток проседает, по столу идёт волна, плиты падают на место, на стекле остаётся оттиск галочки. Печать поднимается и переворачивается: на её лице рельефом набрано «ВЕРДИКТ» с подписью и шкалой оценки. Финал сверху.'],
+    meta: [['Хронометраж', '15 с · 450 кадров'], ['Камера', '5 планов одного стола: лоток сверху сбоку, макро вдоль шкалы, подъём печати сверху, удар сбоку, переворот и финал сверху'], ['Звук', 'Проход скана, тики шкалы, заряд куба, гул подъёма, резкий тяжёлый удар']],
+    beats: [[0, 'Скан картриджа, кнопки △ ○ ✕ □'], [2.6, 'Тумблер включается'], [3.6, 'Шкала SCORE набирает оценку'], [4.5, 'Кнопки «плюс» и «минус»'], [5.8, 'Пояс печати заряжается'], [6.4, 'Печать поднимается, плиты взлетают'], [8.6, 'Печать над лотком'], [9.8, 'Резкий удар, оттиск на стекле'], [10.3, 'Печать переворачивается'], [11.5, 'Финал: название на лице печати']] },
+  { id: 'gadget', name: '«Гаджетотека»', build: buildGadget, accent: '#00D9FF', dur: 15,
+    pal: [['#00D9FF', 'Курсор, «ГАДЖЕТ»'], ['#1C2638', 'Поверхность'], ['#2C3954', 'Рамки отсеков'], ['#BCD0E6', 'Стекло']],
+    text: ['На столе в ряд стоят отсеки с гаджетами: джойстик, наушники, картридж, геймпад под стеклом, консоль, дрон. Курсор проходит по отсекам и останавливается на стеклянном, тумблер щёлкает, крышка отъезжает.', 'Геймпад поднимается, раскладывается на детали и собирается обратно. Затем он перелетает к прорези в столе: из неё поднимается пьедестал, и геймпад ложится на него. Финал сверху: «ГАДЖЕТ» и «ОТЕКА» въезжают навстречу рядом с пьедесталом.'],
+    meta: [['Хронометраж', '15 с · 450 кадров'], ['Камера', '5 планов одного стола: проводка вдоль отсеков, курсор сверху, облёт геймпада, перелёт к пьедесталу, финал сверху'], ['Звук', 'Щелчки курсора, тумблер, механика крышки, разбор и сборка, гидравлика пьедестала']],
+    beats: [[0, 'Отсеки с гаджетами'], [3.4, 'Курсор идёт по отсекам'], [5.1, 'Тумблер, крышка отъезжает'], [5.9, 'Геймпад поднимается'], [6.9, 'Раскладка на детали'], [8, 'Сборка'], [8.9, 'Перелёт к прорези'], [9.6, 'Пьедестал поднимается, геймпад ложится'], [11.8, '«ГАДЖЕТ» и «ОТЕКА» въезжают навстречу']] },
+  { id: 'bumper', name: 'Отбивка', build: buildBumper, accent: '#00D9FF', dur: 5,
+    pal: [['#00D9FF', 'Свет кромок'], ['#1D2533', 'Металлические доски'], ['#080A0F', 'Глубина выреза'], ['#E6EEF8', 'Плашка «РЕКЛАМА»']],
+    text: ['Отбивка повторяет устройство референса. Знак Е вырезан в полу из тёмных металлических досок, стенки выреза подсвечены циановым, у верхней кромки горит тонкая линия.', 'Камера начинает вплотную у закругления знака и медленно отъезжает с лёгким креном, открывая весь знак. По контуру бегут три световых импульса. В углу постоянно стоит логотип канала, внизу слева плашка «РЕКЛАМА», как в референсе.'],
+    meta: [['Хронометраж', '5 с · 150 кадров'], ['Камера', 'Один непрерывный план: от кромки знака на общий, с креном, как в референсе'], ['Звук', 'Низкий гул, мягкие проходы импульсов по контуру']],
+    beats: [[0, 'Вплотную у закругления знака'], [1.1, 'Камера отъезжает с креном'], [2.6, 'Весь знак в кадре'], [3.1, 'Третий импульс по контуру']] },
+];
+const $ = id => document.getElementById(id);
+const ov = $('ov'), scrub = $('scrub'), playBtn = $('play');
+let cur = null, time = 0, playing = true, last = performance.now(), dirty = true, ovEls = {};
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (reduce) playing = false;
+
+function fmtShort(s) { return '0:' + String(Math.floor(s)).padStart(2, '0'); }
+function tcode(t) { const f = Math.round(t * 30), ff = f % 30, s = Math.floor(f / 30); return `00:00:${String(s).padStart(2, '0')}:${String(ff).padStart(2, '0')}`; }
+PIECES.forEach((p, i) => {
+  const b = document.createElement('button');
+  b.className = 'tab'; b.type = 'button'; b.setAttribute('role', 'tab'); b.id = 'tab-' + p.id;
+  b.innerHTML = `${p.name}<small>${fmtShort(p.dur)}</small>`;
+  b.addEventListener('click', () => select(i, true));
+  $('tabs').appendChild(b);
+});
+
+function select(i, autoplay) {
+  const p = PIECES[i];
+  if (!p.inst) p.inst = p.build();
+  cur = p; time = reduce && !autoplay ? p.inst.dur - .01 : 0;
+  if (autoplay) playing = true;
+  const S = p.inst.S;
+  renderPass.scene = S.scene; renderPass.camera = S.cam; bokeh.scene = S.scene; bokeh.camera = S.cam;
+  bokeh.uniforms.nearClip.value = S.cam.near; bokeh.uniforms.farClip.value = S.cam.far;
+  document.documentElement.style.setProperty('--accent', p.accent);
+  document.querySelectorAll('.tab').forEach((b, k) => b.setAttribute('aria-selected', k === i));
+  ov.innerHTML = p.inst.overlay; ovEls = {}; ov.querySelectorAll('[data-k]').forEach(e => ovEls[e.dataset.k] = e);
+  scrub.max = p.inst.dur;
+  $('ticks').innerHTML = p.beats.map(b => `<i style="left:${b[0] / p.inst.dur * 100}%"></i>`).join('');
+  $('beats').innerHTML = p.beats.map(b => `<li><button type="button" class="beat" data-t="${b[0]}"><code>${tcode(b[0])}</code><span>${b[1]}</span></button></li>`).join('');
+  $('beats').querySelectorAll('.beat').forEach(el => el.addEventListener('click', () => { time = +el.dataset.t; dirty = true; }));
+  $('concept').innerHTML = p.text.map(x => `<p>${x}</p>`).join('') +
+    `<dl class="meta">${p.meta.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>` +
+    `<div class="chips">${p.pal.map(([c, n]) => `<span class="chip"><i style="background:${c}"></i>${n}</span>`).join('')}</div>`;
+  try { localStorage.setItem('etv-tab', i); } catch (e) { }
+  try { history.replaceState(null, '', '#' + p.id); } catch (e) { }
+  dirty = true; syncBtn();
+}
+function syncBtn() { playBtn.textContent = playing ? '❚❚ Пауза' : '▶ Пуск'; }
+playBtn.addEventListener('click', () => { if (!playing && time >= cur.inst.dur - .02) time = 0; playing = !playing; syncBtn(); });
+$('restart').addEventListener('click', () => { time = 0; playing = true; dirty = true; syncBtn(); });
+scrub.addEventListener('input', () => { time = +scrub.value; playing = false; dirty = true; syncBtn(); });
+$('safe').addEventListener('change', e => { $('safeA').hidden = $('safeG').hidden = !e.target.checked; });
+$('fs').addEventListener('click', () => { const r = stageEl.requestFullscreen?.(); r && r.catch(() => { }); });
+addEventListener('keydown', e => { if (e.code === 'Space' && !/INPUT|BUTTON/.test(document.activeElement.tagName)) { e.preventDefault(); playBtn.click(); } });
+
+function resize() {
+  const w = stageEl.clientWidth, h = stageEl.clientHeight; if (!w || !h) return;
+  renderer.setSize(w, h, false); composer.setSize(w, h); composer.setPixelRatio(Math.min(devicePixelRatio, 2)); dirty = true;
+}
+new ResizeObserver(resize).observe(stageEl);
+
+// шрифты нужны до сборки титров: текстуры рисуются на canvas
+await Promise.race([
+  Promise.all(['800 100px Unbounded', `600 60px "JetBrains Mono"`].map(f => document.fonts.load(f, 'ВЕРДИКТ E-SPORTS'))).catch(() => { }),
+  new Promise(r => setTimeout(r, 4000)),
+]);
+
+let start = 0;
+const hi = PIECES.findIndex(p => p.id === location.hash.slice(1));
+if (hi >= 0) start = hi; else { try { const s = +localStorage.getItem('etv-tab'); if (s >= 0 && s < 4) start = s; } catch (e) { } }
+select(start, false);
+resize();
+$('loading').hidden = true;
+
+// для покадрового экспорта
+window.__etv = { seek(i, t) { if (cur !== PIECES[i]) select(i, false); playing = false; time = t; frame(performance.now(), true); }, durs: PIECES.map(p => p.dur) };
+
+function frame(now, once) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (playing && !once) {
+    time += dt;
+    if (time >= cur.inst.dur) { if ($('loop').checked) time = 0; else { time = cur.inst.dur; playing = false; syncBtn(); } }
+  }
+  if (playing || dirty || once) {
+    const S = cur.inst.S;
+    cur.inst.update(time); cur.inst.ov(time, ovEls);
+    bokeh.uniforms.focus.value = S.focus; bokeh.uniforms.aperture.value = S.ap;
+    composer.render(); dirty = false;
+    scrub.value = time; $('tc').innerHTML = tcode(time) + '<small>ТАЙМКОД · 30 К/С</small>';
+    let on = -1; cur.beats.forEach((b, k) => { if (time >= b[0]) on = k; });
+    $('beats').querySelectorAll('.beat').forEach((el, k) => el.classList.toggle('on', k === on));
+  }
+  if (!once) requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body></html>
