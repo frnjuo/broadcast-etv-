@@ -11,7 +11,7 @@ const NAMES = ['01_zastavka_kanala', '02_verdikt', '03_gadzhetoteka', '04_otbivk
   p.on('pageerror', e => console.log('PAGEERR', e.message));
   await p.goto('file://' + path.join(ROOT, 'index.html'));
   await p.addStyleTag({ content: '#stage{position:fixed!important;left:0;top:0;width:1920px!important;height:1080px!important;z-index:999;border:0!important}' });
-  await p.waitForFunction(() => window.__etv, null, { timeout: 120000 });
+  await p.waitForFunction(() => window.__etv, null, { timeout: 600000 });
   await p.waitForTimeout(500);
   const K = +(process.env.K || 0), N = +(process.env.N || 1);
   for (const i of (process.env.ONLY ? process.env.ONLY.split(',').map(Number) : [0, 1, 2, 3])) {
