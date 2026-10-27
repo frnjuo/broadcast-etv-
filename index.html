@@ -619,6 +619,7 @@ function makeText(parts, o = {}) {
   });
   const face = draw('face'), side = layers > 1 ? draw('side') : face, shTex = o.noShadow ? null : draw('shadow');
   const W = H * cw / ch, g = new THREE.Group(), mats = [];
+  g.userData.text = { s: parts.map(p => p.s).join(''), h: H, px: +((font.match(/(\d+)px/) || [0, 180])[1]), depth: layers > 1 ? depth : 0 }; // для выгрузки в Blender
   for (let i = 0; i < layers; i++) {
     const top = i === layers - 1;
     // лицевой слой не освещается: чёткие буквы без ореола, как плоская графика; боковые слои дают объём
@@ -1060,7 +1061,7 @@ function makeConsole(o = {}) {
   const flaps = [-1, 1].map(s => { const pv = new THREE.Group(); pv.position.set(sX, top + .012, s * sD / 2); g.add(pv); meshTo(pv, slb(sW - .04, .025, sD / 2, .02), PM.glass, [0, -.0125, -s * sD / 4]); return { pv, s }; });
   // перфорация за слотом и гравированная микроподпись
   const perf = decal(perfTex(26, 7), 3.1, .84, top + .003); perf.position.set(sX, top + .003, -1.55); g.add(perf);
-  const mt = decal(microTex(640, 80, [['E·TV  ENTERTAINMENT SYSTEM', 12, 30, 380]], { fs: 22 }), 3.4, .42, top + .003, .85); mt.position.set(-1.9, top + .003, 1.9); g.add(mt);
+  const mt = decal(microTex(640, 80, [['Е·ТВ  ИГРОВАЯ СИСТЕМА', 12, 30, 380]], { fs: 22 }), 3.4, .42, top + .003, .85); mt.position.set(-1.9, top + .003, 1.9); g.add(mt);
   // фронт: тонкая светодиодная линия, кнопка питания с кольцом, порт
   const ledM = lit(C.cyan, .15), led = meshTo(g, new RoundedBoxGeometry(W - 3.4, .03, .03, 1, .012), ledM, [-.6, .6, D / 2 + .01]);
   meshTo(g, new THREE.CylinderGeometry(.16, .16, .05, 32), PM.alu, [W / 2 - .85, .6, D / 2 + .005], [Math.PI / 2, 0, 0]);
@@ -1155,7 +1156,7 @@ function cartLabel(kind) {
     g.fillStyle = 'rgba(15,20,28,.8)';
     if (kind === 'e') { g.save(); g.translate(256, 180); g.scale(150, 150); g.translate(-.8, 0); const P = new Path2D(); LOGO_PTS.forEach((p, i) => i ? P.lineTo(p.x, -p.y) : P.moveTo(p.x, -p.y)); P.closePath(); g.fill(P); g.restore(); }
     else { g.lineWidth = 6; g.strokeStyle = 'rgba(15,20,28,.75)'; for (let i = 0; i < 5; i++) { g.beginPath(); g.roundRect(166 + i * 9, 100 + i * 9, 180 - i * 18, 160 - i * 18, 26 - i * 4); g.stroke(); } }
-    g.font = `600 30px ${MONO}`; g.fillStyle = 'rgba(15,20,28,.85)'; g.fillText(kind === 'e' ? 'E·TV  CH-01' : `GAME  ${kind}`, 46, 352);
+    g.font = `600 30px ${MONO}`; g.fillStyle = 'rgba(15,20,28,.85)'; g.fillText(kind === 'e' ? 'Е·ТВ  КАНАЛ 01' : `ИГРА  ${kind}`, 46, 352);
     g.fillRect(46, 380, 210, 4); g.beginPath(); g.arc(280, 382, 5, 0, 7); g.fill(); g.beginPath(); g.arc(296, 382, 5, 0, 7); g.fill();
   });
 }
@@ -1180,8 +1181,8 @@ function makeGameCase() {
     q.strokeStyle = 'rgba(230,238,248,.75)'; q.lineWidth = 3; q.beginPath(); q.arc(360, 380, 190, 0, 7); q.stroke();
     q.strokeStyle = 'rgba(0,217,255,.8)'; q.lineWidth = 2; q.beginPath(); q.arc(360, 380, 230, -.6, 1.1); q.stroke();
     q.strokeStyle = 'rgba(230,238,248,.25)'; q.lineWidth = 1.5; for (let i = 0; i < 9; i++) { q.beginPath(); q.moveTo(60, 120 + i * 60); q.lineTo(140, 120 + i * 60); q.stroke(); }
-    q.font = '800 64px Unbounded, sans-serif'; q.fillStyle = '#e6eef8'; q.fillText('ORBIT', 60, 720);
-    q.font = `600 22px ${MONO}`; q.fillStyle = 'rgba(230,238,248,.6)'; q.fillText('E2 E4  ·  SEASON 01', 62, 770); q.fillRect(62, 800, 200, 3);
+    q.font = '800 64px Unbounded, sans-serif'; q.fillStyle = '#e6eef8'; q.fillText('ОРБИТА', 60, 720);
+    q.font = `600 22px ${MONO}`; q.fillStyle = 'rgba(230,238,248,.6)'; q.fillText('СЕЗОН 01  ·  ЧАСТЬ 2', 62, 770); q.fillRect(62, 800, 200, 3);
   });
   const caseM = new THREE.MeshPhysicalMaterial({ color: 0x0b0e14, roughness: .36, clearcoat: .7, clearcoatRoughness: .45, envMapIntensity: .9 });
   meshTo(g, new RoundedBoxGeometry(w, t, d, 2, .05), caseM, [0, t / 2, 0]);
@@ -1282,7 +1283,7 @@ function makeHandheld() {
   const g = new THREE.Group();
   meshTo(g, slb(3.8, .32, 1.75, .6), PM.graphite2, [0, 0, 0]);
   meshTo(g, slb(2.1, .02, 1.25, .1), PM.glass, [0, .32, 0]);
-  const scr = new THREE.Mesh(PL, new THREE.MeshBasicMaterial({ map: cnv(320, 190, q => { q.fillStyle = '#060a12'; q.fillRect(0, 0, 320, 190); q.strokeStyle = 'rgba(0,217,255,.7)'; q.lineWidth = 2; q.beginPath(); q.roundRect(20, 20, 280, 150, 14); q.stroke(); q.fillStyle = 'rgba(230,238,248,.8)'; q.font = '600 18px monospace'; q.fillText('CONTINUE  ▸', 40, 70); q.fillStyle = 'rgba(230,238,248,.35)'; q.fillText('NEW GAME', 40, 100); q.fillText('OPTIONS', 40, 130); }), toneMapped: false, color: new THREE.Color(.8, .8, .8) }));
+  const scr = new THREE.Mesh(PL, new THREE.MeshBasicMaterial({ map: cnv(320, 190, q => { q.fillStyle = '#060a12'; q.fillRect(0, 0, 320, 190); q.strokeStyle = 'rgba(0,217,255,.7)'; q.lineWidth = 2; q.beginPath(); q.roundRect(20, 20, 280, 150, 14); q.stroke(); q.fillStyle = 'rgba(230,238,248,.8)'; q.font = `600 18px ${MONO}`; q.fillText('ПРОДОЛЖИТЬ  ▸', 40, 70); q.fillStyle = 'rgba(230,238,248,.35)'; q.fillText('НОВАЯ ИГРА', 40, 100); q.fillText('НАСТРОЙКИ', 40, 130); }), toneMapped: false, color: new THREE.Color(.8, .8, .8) }));
   scr.rotation.x = -Math.PI / 2; scr.scale.set(1.95, 1.12, 1); scr.position.y = .345; g.add(scr);
   meshTo(g, flatShapeGeo([rrShape(.5, .14, .04), rrShape(.14, .5, .04)], .325), PM.alu, [-1.45, 0, 0]);
   [[1.35, -.18], [1.6, .14]].forEach(([x, z]) => meshTo(g, new THREE.CylinderGeometry(.11, .11, .05, 32), PM.alu, [x, .34, z]));
@@ -1432,19 +1433,19 @@ function makeMat(S, w, d, o) {
 function makeEnvDesk(S) {
   S.scene.background = new THREE.Color(0x07090e); S.scene.fog = new THREE.Fog(0x07090e, 26, 60);
   const wt = woodTex(); wt.repeat.set(2.2, 1.6);
-  const desk = new THREE.Mesh(slb(64, .6, 26, .6), new THREE.MeshPhysicalMaterial({ map: wt, roughness: .42, clearcoat: .35, clearcoatRoughness: .4, envMapIntensity: .45 })); desk.position.set(0, -.6, -2); desk.receiveShadow = true; S.scene.add(desk);
+  const desk = new THREE.Mesh(slb(64, .6, 26, .6), new THREE.MeshPhysicalMaterial({ map: wt, roughness: .42, clearcoat: .35, clearcoatRoughness: .4, envMapIntensity: .45 })); desk.position.set(0, -.6, -2); desk.receiveShadow = true; desk.name = 'Стол'; S.scene.add(desk);
   const mt = noiseTex('#161b26', 9, 512, 7, 40); mt.repeat.set(10, 6);
-  const mat = makeMat(S, 26, 14.2, { tex: mt, h: .05, r: .9, edge: 0x0b0d12 }); mat.position.set(0, 0, .1);
+  const mat = makeMat(S, 26, 14.2, { tex: mt, h: .05, r: .9, edge: 0x0b0d12 }); mat.position.set(0, 0, .1); mat.name = 'Коврик';
   // стена: акустические рейки, за столом — светодиодная лента
-  const wall = new THREE.Group(); wall.position.set(0, 0, -11.2); S.scene.add(wall);
+  const wall = new THREE.Group(); wall.name = 'Стена из реек'; wall.position.set(0, 0, -11.2); S.scene.add(wall);
   wall.add(new THREE.Mesh(new THREE.PlaneGeometry(80, 30), new THREE.MeshStandardMaterial({ color: 0x0b0e14, roughness: .9 })));
   const slatM = new THREE.MeshStandardMaterial({ color: 0x1a1d24, roughness: .7, envMapIntensity: .3 });
   for (let i = -46; i <= 46; i++) { const s = new THREE.Mesh(new THREE.BoxGeometry(.32, 30, .3), slatM); s.position.set(i * .5, 10, .2); s.receiveShadow = true; wall.add(s); }
-  const ledM = lit(C.cyan, .15), led = new THREE.Mesh(new RoundedBoxGeometry(60, .06, .06, 1, .02), ledM); led.position.set(0, .1, -10.6); S.scene.add(led);
+  const ledM = lit(C.cyan, .15), led = new THREE.Mesh(new RoundedBoxGeometry(60, .06, .06, 1, .02), ledM); led.position.set(0, .1, -10.6); led.name = 'Светодиодная лента'; S.scene.add(led);
   const washT = cnv(64, 256, q => { const gr = q.createLinearGradient(0, 256, 0, 0); gr.addColorStop(0, 'rgba(0,217,255,.42)'); gr.addColorStop(.25, 'rgba(0,217,255,.1)'); gr.addColorStop(1, 'rgba(0,217,255,0)'); q.fillStyle = gr; q.fillRect(0, 0, 64, 256); });
   const wash = new THREE.Mesh(new THREE.PlaneGeometry(60, 9), new THREE.MeshBasicMaterial({ map: washT, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })); wash.position.set(0, 4.4, -10.7); S.scene.add(wash);
   // телевизор на стене: включается, когда консоль загружается
-  const tv = new THREE.Group(); tv.position.set(-1, 7.2, -10.6); S.scene.add(tv);
+  const tv = new THREE.Group(); tv.name = 'Телевизор'; tv.position.set(-1, 7.2, -10.6); S.scene.add(tv);
   tv.add(new THREE.Mesh(new RoundedBoxGeometry(13.2, 7.5, .3, 3, .1), new THREE.MeshPhysicalMaterial({ color: 0x07090c, roughness: .3, metalness: .4, envMapIntensity: .8 })));
   const scrT = cnv(1280, 720, q => {
     const gr = q.createRadialGradient(640, 330, 20, 640, 360, 760); gr.addColorStop(0, '#0f2236'); gr.addColorStop(1, '#04070c'); q.fillStyle = gr; q.fillRect(0, 0, 1280, 720);
@@ -1459,11 +1460,11 @@ function makeEnvDesk(S) {
 function makeEnvCritic(S) {
   S.scene.background = new THREE.Color(0x07080d); S.scene.fog = new THREE.Fog(0x07080d, 28, 64);
   const st = slateTex(); st.repeat.set(3, 1.6);
-  const desk = new THREE.Mesh(slb(70, .6, 28, .6), new THREE.MeshPhysicalMaterial({ map: st, roughness: .62, clearcoat: .12, clearcoatRoughness: .7, envMapIntensity: .55 })); desk.position.set(2, -.6, -2); desk.receiveShadow = true; S.scene.add(desk);
+  const desk = new THREE.Mesh(slb(70, .6, 28, .6), new THREE.MeshPhysicalMaterial({ map: st, roughness: .62, clearcoat: .12, clearcoatRoughness: .7, envMapIntensity: .55 })); desk.position.set(2, -.6, -2); desk.receiveShadow = true; desk.name = 'Стол из камня'; S.scene.add(desk);
   const lt = noiseTex('#1d1a26', 14, 512, 11, 60); lt.repeat.set(8, 5);
-  const pad = makeMat(S, 23, 13, { tex: lt, h: .06, r: .6, edge: 0x120f1a, stitch: 'rgba(170,150,210,.55)', rough: .75 }); pad.position.set(-1.6, 0, -.4);
+  const pad = makeMat(S, 23, 13, { tex: lt, h: .06, r: .6, edge: 0x120f1a, stitch: 'rgba(170,150,210,.55)', rough: .75 }); pad.position.set(-1.6, 0, -.4); pad.name = 'Кожаная подложка';
   // полка с коллекцией игр у стены
-  const shelf = new THREE.Group(); shelf.position.set(0, 0, -12); S.scene.add(shelf);
+  const shelf = new THREE.Group(); shelf.name = 'Полка с играми'; shelf.position.set(0, 0, -12); S.scene.add(shelf);
   shelf.add(new THREE.Mesh(new THREE.PlaneGeometry(90, 30), new THREE.MeshStandardMaterial({ color: 0x0a0b10, roughness: .9 })));
   const board = new THREE.MeshPhysicalMaterial({ color: 0x1b1d24, roughness: .55, metalness: .2 }), r = rng(4);
   const spineCols = [0x15181f, 0x1c2029, 0x241d33, 0x121722, 0x2a2240, 0x18202c];
@@ -1472,7 +1473,7 @@ function makeEnvCritic(S) {
     for (let x = -28; x < 28;) { const w = .26 + r() * .06, h = 3.0 + r() * .3, m = new THREE.MeshPhysicalMaterial({ color: spineCols[Math.floor(r() * spineCols.length)], roughness: .35, clearcoat: .6 }); const c = new THREE.Mesh(new THREE.BoxGeometry(w, h, 2.4), m); c.position.set(x, y + .125 + h / 2, 1.6); c.castShadow = true; shelf.add(c); if (r() < .18) { const s = new THREE.Mesh(new THREE.BoxGeometry(w + .01, .14, .05), lit(r() < .5 ? C.violet : 0xe6eef8, .55)); s.position.set(x, y + .125 + h * .78, 2.81); shelf.add(s); } x += w + .03 + (r() < .07 ? 1.2 : 0); }
   });
   // архитекторская лампа слева: основание, два плеча, плафон
-  const lamp = new THREE.Group(); lamp.position.set(-20, 0, -8.6); lamp.rotation.y = .7; S.scene.add(lamp);
+  const lamp = new THREE.Group(); lamp.name = 'Лампа'; lamp.position.set(-20, 0, -8.6); lamp.rotation.y = .7; S.scene.add(lamp);
   meshTo(lamp, new THREE.CylinderGeometry(1.0, 1.1, .25, 48), PM.graphite2, [0, .125, 0]);
   const arm = (a, b) => { const d = b.clone().sub(a), m = meshTo(lamp, new THREE.CylinderGeometry(.08, .08, d.length(), 16), PM.alu, [0, 0, 0]); m.position.copy(a).addScaledVector(d, .5); m.quaternion.setFromUnitVectors(V(0, 1, 0), d.normalize()); };
   const j1 = V(0, .25, 0), j2 = V(.6, 5.0, 1.0), j3 = V(4.6, 6.4, 2.6); arm(j1, j2); arm(j2, j3);
@@ -1497,13 +1498,13 @@ function makeEnvStudio(S, o = {}) {
   prof.forEach(([z, y]) => { [-60, 60].forEach(x => pos.push(x, y, z)); });
   for (let i = 0; i < prof.length - 1; i++) { const a = i * 2, b = a + 1, c = a + 2, d = a + 3; idx.push(a, c, b, b, c, d); }
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals();
-  const cyc = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x232b3b, roughness: .92, envMapIntensity: .35, side: THREE.DoubleSide })); cyc.receiveShadow = true; S.scene.add(cyc);
+  const cyc = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x232b3b, roughness: .92, envMapIntensity: .35, side: THREE.DoubleSide })); cyc.receiveShadow = true; cyc.name = 'Циклорама'; S.scene.add(cyc);
   // поворотный подиум: графит, алюминиевая кромка, световое кольцо у основания
-  const pod = new THREE.Group(); S.scene.add(pod);
+  const pod = new THREE.Group(); pod.name = 'Подиум'; S.scene.add(pod);
   meshTo(pod, new THREE.CylinderGeometry(PR, PR + .1, .34, 96), PM.graphite, [0, .17, 0]);
   meshTo(pod, new THREE.CylinderGeometry(PR + .02, PR + .02, .05, 96), PM.alu, [0, .335, 0]);
   const ringM = lit(C.cyan, .15); meshTo(pod, new THREE.TorusGeometry(PR + .12, .025, 8, 160), ringM, [0, .03, 0], [Math.PI / 2, 0, 0]);
-  const plinth = (x, z, r = 1.9) => { const g = new THREE.Group(); g.position.set(x, 0, z); S.scene.add(g); meshTo(g, new THREE.CylinderGeometry(r, r + .05, .2, 72), PM.graphite2, [0, .1, 0]); meshTo(g, new THREE.CylinderGeometry(r - .02, r - .02, .03, 72), PM.aluDark, [0, .2, 0]); return g; };
+  const plinth = (x, z, r = 1.9) => { const g = new THREE.Group(); g.name = 'Плинт'; g.position.set(x, 0, z); S.scene.add(g); meshTo(g, new THREE.CylinderGeometry(r, r + .05, .2, 72), PM.graphite2, [0, .1, 0]); meshTo(g, new THREE.CylinderGeometry(r - .02, r - .02, .03, 72), PM.aluDark, [0, .2, 0]); return g; };
   // свет студии: верхний софтбокс над подиумом даёт пятно на полу, подсветка циклорамы — светлый горизонт за предметом
   const top = new THREE.SpotLight(0xf2f6ff, 380, 46, .5, 1, 2); top.position.set(0, 22, 1.5); S.scene.add(top, top.target);
   const hzT = cnv(512, 256, q => { const gr = q.createRadialGradient(256, 256, 10, 256, 256, 300); gr.addColorStop(0, 'rgba(160,185,225,.8)'); gr.addColorStop(.5, 'rgba(90,110,150,.26)'); gr.addColorStop(1, 'rgba(60,80,120,0)'); q.fillStyle = gr; q.fillRect(0, 0, 512, 256); });
@@ -1523,18 +1524,18 @@ function buildIdent() {
   const S = makeStageP();
   const ENV = makeEnvDesk(S);
   const CX = 0, CZ = -2.6;
-  const con = makeConsole({ W: 9, D: 5, eS: 2.3, eX: -1.55, sX: 2.55 }); con.g.position.set(CX, .05, CZ); S.scene.add(con.g);
+  const con = makeConsole({ W: 9, D: 5, eS: 2.3, eX: -1.55, sX: 2.55 }); con.g.position.set(CX, .05, CZ); con.g.name = 'Консоль'; S.scene.add(con.g);
   // геймпад справа, кабель идёт в порт на правом боку консоли
-  const pad = makePad(), PG = new THREE.Group(); PG.add(pad.g); pad.g.rotation.x = -Math.PI / 2; pad.g.position.y = .37; PG.scale.setScalar(1.75); PG.position.set(8.5, .05, -.15); PG.rotation.y = .08; S.scene.add(PG); PG.updateMatrixWorld(true);
+  const pad = makePad(), PG = new THREE.Group(); PG.add(pad.g); pad.g.rotation.x = -Math.PI / 2; pad.g.position.y = .37; PG.scale.setScalar(1.75); PG.position.set(8.5, .05, -.15); PG.rotation.y = .08; PG.name = 'Геймпад'; S.scene.add(PG); PG.updateMatrixWorld(true);
   const pport = pad.g.localToWorld(pad.parts.port.clone()), cport = V(CX + 4.52, .67, CZ + 1.3), home = pad.g.localToWorld(V(0, -.08, pad.F));
   const portBox = new THREE.Mesh(new RoundedBoxGeometry(.1, .18, .44, 2, .03), PM.hole); portBox.position.copy(cport); S.scene.add(portBox);
   const cab = makeCable(S, [pport, V(pport.x - .05, .14, pport.z - .5), V(7.3, .11, -1.6), V(6.1, .11, -1.25), V(5.2, .14, cport.z), V(cport.x + .25, .55, cport.z), cport]);
   // библиотека игр: картриджи лежат табличкой вверх, крайний — с Е
   const CARTS = [['02', -8.7, -3.9], ['03', -8.7, -1.2], ['04', -6.6, -1.2], ['e', -6.6, -3.9]];
-  const carts = CARTS.map(([k, x, z]) => { const c = makeCartridge(k), w = new THREE.Group(); w.add(c.g); w.position.set(x, .25, z); w.rotation.x = -Math.PI / 2; S.scene.add(w); return { ...c, w, x, z }; });
+  const carts = CARTS.map(([k, x, z]) => { const c = makeCartridge(k), w = new THREE.Group(); w.add(c.g); w.position.set(x, .25, z); w.rotation.x = -Math.PI / 2; w.name = k === 'e' ? 'Картридж Е' : 'Картридж ' + k; S.scene.add(w); return { ...c, w, x, z }; });
   const hero = carts[3];
-  const hs = makeHeadset(); hs.g.position.set(9.3, .05, -4.6); hs.g.rotation.y = -.35; S.scene.add(hs.g);
-  const TT = bigTitle(S, [{ s: 'ИГРОВОЙ КАНАЛ', h: 2.05, z: 2.75 }, { s: 'E-SPORTS · ENTERTAINMENT · EDUCATION · ENERGY', h: .78, z: 4.25, font: `600 120px ${MONO}`, c: '#7fe9ff', layers: 1, skew: 0, track: 10, noShadow: true }], { x: 0, y: .07 });
+  const hs = makeHeadset(); hs.g.position.set(9.3, .05, -4.6); hs.g.rotation.y = -.35; hs.g.name = 'Наушники'; S.scene.add(hs.g);
+  const TT = bigTitle(S, [{ s: 'ИГРОВОЙ КАНАЛ', h: 2.05, z: 2.75 }, { s: 'КИБЕРСПОРТ · РАЗВЛЕЧЕНИЯ · ОБРАЗОВАНИЕ · ЭНЕРГИЯ', h: .78, z: 4.25, font: `600 120px ${MONO}`, c: '#7fe9ff', layers: 1, skew: 0, track: 10, noShadow: true }], { x: 0, y: .07 });
   const fx = streak(S, C.cyan), shock = shockRing(S, C.cyan);
   const slot = V(CX + con.sX, con.top + .05, CZ), hp = V();
   const cpose = t => {
@@ -1603,15 +1604,15 @@ function buildVerdict() {
   const S = makeStageP(); S.neonCol = C.violet; S.rimK = .05; // точечные контровые бликуют квадратами на алюминии штампа
   const ENV = makeEnvCritic(S), Y0 = .06; // верх кожаной подложки
   const caseC = V(-7.7, Y0, -1.4), padC = V(17.5, 0, -1.6), fin = V(1.3, 3.55, -1.3), starZ = 3.55;
-  const gc = makeGameCase(); gc.g.position.copy(caseC); S.scene.add(gc.g);
+  const gc = makeGameCase(); gc.g.position.copy(caseC); gc.g.name = 'Коробка игры'; gc.hinge.name = 'Крышка коробки'; S.scene.add(gc.g);
   const imprint = new THREE.Mesh(PL, new THREE.MeshBasicMaterial({ map: cnv(720, 920, q => { q.strokeStyle = '#b48cff'; q.shadowColor = '#7A35FF'; q.shadowBlur = 24; q.lineWidth = 9; q.beginPath(); q.roundRect(60, 160, 600, 600, 70); q.stroke(); q.lineWidth = 7; q.beginPath(); q.roundRect(84, 184, 552, 552, 52); q.stroke(); q.lineWidth = 38; q.lineCap = q.lineJoin = 'round'; q.beginPath(); q.moveTo(210, 470); q.lineTo(320, 580); q.lineTo(520, 330); q.stroke(); }), transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
-  imprint.rotation.x = -Math.PI / 2; imprint.scale.set(gc.w - .3, gc.d - .3, 1); imprint.position.set(caseC.x, caseC.y + gc.topY + .01, caseC.z); S.scene.add(imprint);
-  const rail = makeRail(5, 1.6); rail.position.set(fin.x, Y0, starZ); S.scene.add(rail);
-  const stars = [0, 1, 2, 3, 4].map(i => { const s = makeStar(.5); s.g.position.set(fin.x - 3.2 + i * 1.6, Y0 + .2, starZ); S.scene.add(s.g); return s; });
-  const tp = makeToken('plus', C.cyan), tm = makeToken('minus', C.violet); tp.g.position.set(fin.x - 6.0, Y0, starZ); tm.g.position.set(fin.x + 6.0, Y0, starZ); S.scene.add(tp.g, tm.g);
-  const pad = makePad(), PG = new THREE.Group(); PG.add(pad.g); pad.g.rotation.x = -Math.PI / 2; pad.g.position.y = .37; PG.scale.setScalar(1.5); PG.position.set(-8.6, Y0, 4.4); PG.rotation.y = -.35; S.scene.add(PG);
-  const ink = makeInkPad(); ink.g.position.copy(padC); S.scene.add(ink.g);
-  const st = makeStamp('ВЕРДИКТ', 'ОБЗОРЫ ИГР', { W: 11, D: 5.4, th: 1.85 }); S.scene.add(st.g);
+  imprint.rotation.x = -Math.PI / 2; imprint.scale.set(gc.w - .3, gc.d - .3, 1); imprint.position.set(caseC.x, caseC.y + gc.topY + .01, caseC.z); imprint.name = 'Оттиск'; S.scene.add(imprint);
+  const rail = makeRail(5, 1.6); rail.position.set(fin.x, Y0, starZ); rail.name = 'Шкала оценки'; S.scene.add(rail);
+  const stars = [0, 1, 2, 3, 4].map(i => { const s = makeStar(.5); s.g.position.set(fin.x - 3.2 + i * 1.6, Y0 + .2, starZ); s.g.name = 'Звезда ' + (i + 1); S.scene.add(s.g); return s; });
+  const tp = makeToken('plus', C.cyan), tm = makeToken('minus', C.violet); tp.g.position.set(fin.x - 6.0, Y0, starZ); tm.g.position.set(fin.x + 6.0, Y0, starZ); tp.g.name = 'Тумблер плюс'; tm.g.name = 'Тумблер минус'; S.scene.add(tp.g, tm.g);
+  const pad = makePad(), PG = new THREE.Group(); PG.add(pad.g); pad.g.rotation.x = -Math.PI / 2; pad.g.position.y = .37; PG.scale.setScalar(1.5); PG.position.set(-8.6, Y0, 4.4); PG.rotation.y = -.35; PG.name = 'Геймпад'; S.scene.add(PG);
+  const ink = makeInkPad(); ink.g.position.copy(padC); ink.g.name = 'Штемпельная подушка'; S.scene.add(ink.g);
+  const st = makeStamp('ВЕРДИКТ', 'ОБЗОРЫ ИГР', { W: 11, D: 5.4, th: 1.85 }); st.g.name = 'Штамп'; S.scene.add(st.g);
   const fx = streak(S, C.violet), shock = shockRing(S, C.violet);
   const SLAM = 9.82, inkY = .47, caseY = caseC.y + gc.topY + .02;
   const pose = t => {
@@ -1689,8 +1690,8 @@ function buildVerdict() {
 /* =========================================================
    3. ГАДЖЕТОТЕКА · 15 с — предметная студия: циклорама, поворотный подиум, экспонаты на плинтах
    Гаджеты на плинтах включаются один за другим → коробка на подиуме доворачивается к камере →
-   световой нож режет ленту, крышка снимается и ложится на пол → VR-шлем поднимается, раскладывается на детали
-   со сносками, собирается и ложится обратно → подиум и гаджеты отзываются светом → крупный титр.
+   световой нож режет ленту, крышка снимается и ложится на пол → VR-шлем поднимается, раскладывается на детали,
+   к деталям по очереди выходят сноски-карточки → шлем собирается и ложится обратно → подиум и гаджеты отзываются светом → крупный титр.
    ========================================================= */
 function vrBoxArt() {
   return cnv(1024, 704, q => {
@@ -1703,87 +1704,153 @@ function vrBoxArt() {
     q.fillStyle = 'rgba(230,238,248,.75)'; q.fillRect(190, 585, 260, 18); q.fillStyle = 'rgba(230,238,248,.35)'; q.fillRect(190, 615, 160, 12);
   });
 }
+// сноски: номер, название детали, короткое пояснение; точка привязки — центр детали, карточка — сбоку от шлема
+const VR_CO = [
+  ['01', 'СТЕКЛО ДИСПЛЕЯ', 'изогнутая тёмная панель', 0, [2.1, .75, .5]],
+  ['02', 'КОЛЁСИКО', 'громкость и погружение', 9, [1.9, 1.75, -.3]],
+  ['03', 'ЛИНЗЫ', 'по линзе на каждый глаз', 6, [-2.6, .7, -.9]],
+  ['04', 'СВЕТОЗАЩИТА', 'мягкая маска по лицу', 3, [-2.4, -.8, -.6]],
+  ['05', 'ВЯЗАНЫЙ РЕМЕНЬ', 'подгоняется по голове', 8, [2.4, -.9, -1.9]],
+];
+const CO_CSS = `<style>
+.cos{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.cos .ring{fill:none;stroke:#00D9FF;stroke-width:2.4}
+.cos .pulse{fill:none;stroke:#00D9FF;stroke-width:1.6}
+.cos .dot{fill:#E6F9FF}
+.cos .ld{fill:none;stroke:#00D9FF;stroke-width:2;stroke-linejoin:round}
+.co{position:absolute;display:grid;grid-template-columns:auto auto;column-gap:.75cqw;row-gap:.25cqw;align-items:center;padding:.6cqw 1cqw .65cqw .7cqw;white-space:nowrap;
+  background:linear-gradient(90deg,rgba(6,10,18,.88),rgba(10,16,28,.7));border:1px solid rgba(0,217,255,.4);border-radius:.25cqw;box-shadow:0 0 1.6cqw rgba(0,0,0,.45)}
+.co .n{grid-row:span 2;font:600 1cqw/1 'JetBrains Mono',monospace;color:#00D9FF;padding:.45cqw .45cqw;border:1px solid rgba(0,217,255,.7);border-radius:.18cqw}
+.co .t{display:grid;font:800 1.5cqw/1.05 Unbounded,'Arial Black',sans-serif;color:#EEF4FB;letter-spacing:.01em}
+.co .t>span{grid-area:1/1}
+.co .t .g{visibility:hidden}
+.co .s{font:600 1cqw/1.2 'JetBrains Mono',monospace;color:#93A6C2;letter-spacing:.02em}
+.co .bar{position:absolute;left:.7cqw;bottom:-1px;height:2px;background:#00D9FF}
+.co.l .n{grid-column:2;grid-row:1 / span 2}
+.co.l .t,.co.l .s{grid-column:1;text-align:right;justify-items:end}
+.co.l .bar{left:auto;right:.7cqw}
+</style>`;
+const coHTML = () => CO_CSS + `<svg class="cos" viewBox="0 0 1600 900" preserveAspectRatio="none">${VR_CO.map((c, i) => `<g data-k="cg${i}" style="display:none"><circle class="pulse" r="0"/><circle class="ring" r="0"/><circle class="dot" r="0"/><polyline class="ld" points=""/></g>`).join('')}</svg>`
+  + VR_CO.map((c, i) => `<div class="co" data-k="cc${i}" style="display:none"><b class="n">${c[0]}</b><b class="t"><span class="g">${c[1]}</span><span class="y"></span></b><i class="s">${c[2]}</i><span class="bar"></span></div>`).join('');
 function buildGadget() {
   const S = makeStageP(); S.rimK = .08;
   const ENV = makeEnvStudio(S, { r: 4.3 }), PY = ENV.podY, P = V(0, 0, -3.2);
   ENV.place(P.x, P.z);
   // коробка стоит на поворотном столе подиума; крышка закрыта с первого кадра
-  const TG = new THREE.Group(); TG.position.set(P.x, PY, P.z); S.scene.add(TG);
-  const box = makeProductBox(vrBoxArt()); TG.add(box.g);
-  const vr = makeVR(), VG = new THREE.Group(); VG.add(vr.g); S.scene.add(VG);
+  const TG = new THREE.Group(); TG.name = 'Поворотный стол'; TG.position.set(P.x, PY, P.z); S.scene.add(TG);
+  const box = makeProductBox(vrBoxArt()); box.g.name = 'Коробка VR'; box.lid.name = 'Крышка'; TG.add(box.g);
+  const vr = makeVR(), VG = new THREE.Group(); VG.name = 'VR-шлем'; VG.add(vr.g); S.scene.add(VG);
+  // алюминий шлема чуть матовее: верхний софтбокс давал на рамке пересвеченный блик
+  const vrAlu = PM.alu.clone(), vrGlass = PM.glass.clone(); vrAlu.roughness = .46; vrGlass.roughness = .3; vrGlass.clearcoatRoughness = .32;
+  vr.g.traverse(o => { if (o.material === PM.alu) o.material = vrAlu; if (o.material === PM.glass) o.material = vrGlass; });
   // экспонаты на плинтах: портативная консоль, геймпад, наушники
   const PT = .215;
-  ENV.plinth(-8.8, -4.6, 2.1); const hh = makeHandheld(); hh.position.set(-8.8, PT, -4.6); hh.rotation.y = .25; S.scene.add(hh);
+  ENV.plinth(-8.8, -4.6, 2.1); const hh = makeHandheld(); hh.position.set(-8.8, PT, -4.6); hh.rotation.y = .25; hh.name = 'Портативная консоль'; S.scene.add(hh);
   const hhScr = hh.children[2].material; hhScr.color.setScalar(0);
-  ENV.plinth(-8.8, -.4, 1.8); const pad = makePad(), PG = new THREE.Group(); PG.add(pad.g); pad.g.rotation.x = -Math.PI / 2; pad.g.position.y = .37; PG.scale.setScalar(1.5); PG.position.set(-8.8, PT, -.4); PG.rotation.y = .3; S.scene.add(PG);
-  ENV.plinth(8.6, -1.4, 1.9); const hs = makeHeadset(); hs.g.position.set(8.6, PT, -1.4); hs.g.rotation.y = -.3; S.scene.add(hs.g);
-  // сноски к деталям шлема
-  const CO = [['DISPLAY GLASS', 0, [1.95, .95, .5]], ['DIGITAL CROWN', 9, [1.9, 1.45, -.3]], ['LENSES', 4, [-2.5, .35, -.9]], ['LIGHT SEAL', 3, [-2.4, -.95, -.6]], ['KNIT BAND', 8, [2.5, -.7, -1.9]]];
-  const cos = CO.map(([txt, pi, lp]) => {
-    const sp = labelSprite(txt, .3); S.scene.add(sp);
-    const geo = new THREE.BufferGeometry().setFromPoints([V(0, 0, 0), V(0, 0, 0)]), ln = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: C.cyan, transparent: true, opacity: 0, depthTest: false })); ln.renderOrder = 9; S.scene.add(ln);
-    return { sp, ln, part: vr.parts[pi].m, lp: V(...lp) };
-  });
+  ENV.plinth(-8.8, -.4, 1.8); const pad = makePad(), PG = new THREE.Group(); PG.add(pad.g); pad.g.rotation.x = -Math.PI / 2; pad.g.position.y = .37; PG.scale.setScalar(1.5); PG.position.set(-8.8, PT, -.4); PG.rotation.y = .3; PG.name = 'Геймпад'; S.scene.add(PG);
+  ENV.plinth(8.6, -1.4, 1.9); const hs = makeHeadset(); hs.g.position.set(8.6, PT, -1.4); hs.g.rotation.y = -.3; hs.g.name = 'Наушники'; S.scene.add(hs.g);
+  // сноски: экранные координаты считаются каждый кадр из положения деталей
+  const cos = VR_CO.map(([n, title, sub, pi, lp]) => ({ title, part: vr.parts[pi].m, lp: V(...lp), ok: false, ax: 0, ay: 0, bx: 0, by: 0, side: 1 }));
   const TT = bigTitle(S, [{ s: 'ГАДЖЕТОТЕКА', h: 2.1, z: 2.75, c: '#E6EEF8' }, { s: 'НЕОБЫЧНЫЕ ГАДЖЕТЫ ЧЕЛОВЕЧЕСТВА', h: .8, z: 4.25, font: `600 120px ${MONO}`, c: '#00D9FF', layers: 1, skew: 0, track: 12, noShadow: true }], { x: 0 });
   const fx = streak(S, C.cyan), shock = shockRing(S, C.cyan);
   const restY = PY + .3 + .71, upY = 4.6, wp = V(), wl = V(), lw = V();
   // крышка: вверх → в сторону за подиум → вниз на пол (координаты относительно коробки)
   const LID = V(8.0 - P.x, -PY + .005, -6.3 - P.z);
-  const lidAt = t => { const lu = glide(seg(t, 4.4, 5.0)), lm = glide(seg(t, 4.9, 5.7)), ld = glide(seg(t, 5.35, 5.95)); return [lerp(0, LID.x, lm), lerp(box.h + 2.6 * lu, LID.y, ld), lerp(0, LID.z, lm), lm]; };
+  const lidAt = t => { const lu = glide(seg(t, 3.75, 4.3)), lm = glide(seg(t, 4.2, 4.95)), ld = glide(seg(t, 4.6, 5.15)); return [lerp(0, LID.x, lm), lerp(box.h + 2.6 * lu, LID.y, ld), lerp(0, LID.z, lm), lm]; };
   const cam = shots(S, [
     // 1. макро: экран портативной консоли загорается
-    { t0: 0, t1: 1.2, p0: [-6.9, 1.9, -2.4], p1: [-7.6, 1.45, -3.1], l0: [-8.8, .5, -4.6], l1: [-8.9, .5, -4.7], fov: [28, 28], roll: [-4, -1], ap: .016 },
+    { t0: 0, t1: 1.0, p0: [-6.9, 1.9, -2.4], p1: [-7.6, 1.45, -3.1], l0: [-8.8, .5, -4.6], l1: [-8.9, .5, -4.7], fov: [28, 28], roll: [-4, -1], ap: .016 },
     // 2. макро слева сверху: у геймпада зажигается световая полоса
-    { t0: 1.2, t1: 2.3, p0: [-12.4, 3.4, 3.2], p1: [-11.0, 2.4, 1.7], l0: [-8.7, .45, -.6], l1: [-8.8, .45, -.7], fov: [30, 30], ap: .012 },
+    { t0: 1.0, t1: 1.9, p0: [-12.4, 3.4, 3.2], p1: [-11.0, 2.4, 1.7], l0: [-8.7, .45, -.6], l1: [-8.8, .45, -.7], fov: [30, 30], ap: .012 },
     // 3. общий план студии: коробка на подиуме доворачивается к камере, наушники отзываются
-    { t0: 2.3, t1: 3.5, p0: [8.5, 6.8, 17.5], p1: [5.6, 5.8, 15.5], l0: [-.5, 1.6, -3.2], l1: [-1.0, 1.4, -3.2], fov: [36, 36], ap: .004 },
+    { t0: 1.9, t1: 2.9, p0: [8.5, 6.8, 17.5], p1: [5.6, 5.8, 15.5], l0: [-.5, 1.6, -3.2], l1: [-1.0, 1.4, -3.2], fov: [36, 36], ap: .004 },
     // 4. макро: световой нож проходит по ленте
-    { t0: 3.5, t1: 4.4, p0: [4.6, 4.8, .4], p1: [3.9, 4.2, -.3], l0: [1.9, 2.8, -3.0], l1: [1.9, 2.8, -3.2], fov: [30, 30], roll: [8, 3], ap: .012 },
+    { t0: 2.9, t1: 3.7, p0: [4.6, 4.8, .4], p1: [3.9, 4.2, -.3], l0: [1.9, 2.8, -3.0], l1: [1.9, 2.8, -3.2], fov: [30, 30], roll: [8, 3], ap: .012 },
     // 5. сверху справа: крышка поднимается, уходит за подиум и ложится на пол
-    { t0: 4.4, t1: 5.9, fn: (k, t) => { box.lid.getWorldPosition(lw); return [[lerp(4.0, 6.6, k), lerp(7.4, 6.0, k), lerp(9.0, 7.4, k)], [lerp(lw.x, P.x, .3), lerp(lw.y + .3, 2.4, .3), lerp(lw.z, P.z, .3)]]; }, fov: [34, 34], ap: .008 },
+    { t0: 3.7, t1: 5.0, fn: (k, t) => { box.lid.getWorldPosition(lw); return [[lerp(4.0, 6.6, k), lerp(7.4, 6.0, k), lerp(9.0, 7.4, k)], [lerp(lw.x, P.x, .3), lerp(lw.y + .3, 2.4, .3), lerp(lw.z, P.z, .3)]]; }, fov: [34, 34], ap: .008 },
     // 6. сверху на три четверти: шлем поднимается из коробки и разворачивается
-    { t0: 5.9, t1: 7.0, p0: [-7.0, 9.2, 4.6], p1: [-6.0, 8.6, 3.6], l0: [0, 2.6, -3.2], l1: [0, 4.6, -3.2], fov: [32, 32], fp: () => VG.position.toArray(), ap: .008 },
-    // 7. облёт: шлем раскладывается на детали, сноски
-    { t0: 7.0, t1: 8.6, fn: k => { const a = lerp(.5, -.5, k); return [[Math.sin(a) * 9.5, upY + .9, P.z + Math.cos(a) * 9.5], [0, upY, P.z]]; }, fov: [34, 34], fp: [0, upY, P.z], ap: .008 },
-    // 8. низко слева: детали собираются
-    { t0: 8.6, t1: 9.6, p0: [-9.6, 1.6, -.6], p1: [-9.0, 2.2, -1.4], l0: [0, 4.2, P.z], l1: [0, 3.8, P.z], fov: [34, 34], ap: .008 },
-    // 9. низкий проезд: шлем ложится в коробку, кольцо подиума и гаджеты отзываются
-    { t0: 9.6, t1: 11.2, p0: [-3.4, .7, 9.4], p1: [2.6, .9, 9.0], l0: [-.8, 1.4, P.z], l1: [.6, 1.0, P.z], fov: [34, 34], ap: .006 },
-    // 10. финал сверху
-    { t0: 11.2, t1: 15, p0: [0, 30.5, -.6], p1: [0, 29, -.6], l0: [0, 0, -.6], l1: [0, 0, -.6], fov: [24, 24], top: true, ap: .0015 },
+    { t0: 5.0, t1: 6.1, p0: [-7.0, 9.2, 4.6], p1: [-6.0, 8.6, 3.6], l0: [0, 2.6, -3.2], l1: [0, 4.6, -3.2], fov: [32, 32], fp: () => VG.position.toArray(), ap: .008 },
+    // 7. облёт справа: шлем раскладывается, выходят первые сноски
+    { t0: 6.1, t1: 7.8, fn: k => { const a = lerp(.6, .1, k); return [[Math.sin(a) * 8.2, upY + .5, P.z + Math.cos(a) * 8.2], [0, upY, P.z]]; }, fov: [33, 32], fp: [0, upY, P.z], ap: .008 },
+    // 8. снизу слева, наезд: все сноски на месте
+    { t0: 7.8, t1: 9.45, p0: [-7.4, 2.5, 5.2], p1: [-6.1, 2.9, 3.9], l0: [0, upY - .1, P.z], l1: [.3, upY, P.z], fov: [33, 31], fp: [0, upY, P.z], ap: .007 },
+    // 9. низко сбоку: детали собираются
+    { t0: 9.45, t1: 10.4, p0: [-9.6, 1.6, -.6], p1: [-9.0, 2.2, -1.4], l0: [0, 4.2, P.z], l1: [0, 3.8, P.z], fov: [34, 34], ap: .008 },
+    // 10. низкий проезд: шлем ложится в коробку, кольцо подиума и гаджеты отзываются
+    { t0: 10.4, t1: 11.4, p0: [-3.4, .7, 9.4], p1: [1.6, .85, 9.1], l0: [-.8, 1.4, P.z], l1: [.4, 1.1, P.z], fov: [34, 34], ap: .006 },
+    // 11. финал сверху
+    { t0: 11.4, t1: 15, p0: [0, 30.5, -.6], p1: [0, 29, -.6], l0: [0, 0, -.6], l1: [0, 0, -.6], fov: [24, 24], top: true, ap: .0015 },
   ]);
-  const lk = 10.4, echo = (t, x, z) => { const d = Math.hypot(x - P.x, z - P.z); return Math.sin(Math.PI * seg(t, lk + d * .05, lk + .5 + d * .05)); };
+  const lk = 11.0, echo = (t, x, z) => { const d = Math.hypot(x - P.x, z - P.z); return Math.sin(Math.PI * seg(t, lk + d * .05, lk + .5 + d * .05)); };
   return {
-    S, dur: 15, overlay: bugHTML(),
+    S, dur: 15, overlay: bugHTML() + coHTML(),
     update(t) {
       // 1. гаджеты включаются по очереди; на щелчок шлема отвечают вспышкой
-      hhScr.color.setScalar(.95 * glide(seg(t, .45, .75)) + .4 * echo(t, -8.8, -4.6));
-      setLit(pad.parts.barMat, C.cyan, .15 + 2.2 * seg(t, 1.55, 1.75) + 2 * echo(t, -8.8, -.4));
-      setLit(hs.ring, C.cyan, .1 + 1.6 * seg(t, 2.45, 2.65) + 2 * echo(t, 8.6, -1.4));
+      hhScr.color.setScalar(.95 * glide(seg(t, .3, .55)) + .4 * echo(t, -8.8, -4.6));
+      setLit(pad.parts.barMat, C.cyan, .15 + 2.2 * seg(t, 1.2, 1.4) + 2 * echo(t, -8.8, -.4));
+      setLit(hs.ring, C.cyan, .1 + 1.6 * seg(t, 2.0, 2.2) + 2 * echo(t, 8.6, -1.4));
       // 2. стол подиума доворачивает коробку к камере и останавливается
-      TG.rotation.y = .9 * (1 - glide(seg(t, 0, 3.4)));
+      TG.rotation.y = .9 * (1 - glide(seg(t, 0, 2.8)));
       // 3. лента режется светом, крышка снимается и ложится на пол
-      const cut = seg(t, 3.6, 4.3); setLit(box.tapeM, C.cyan, .2 + 3 * Math.sin(Math.PI * cut)); box.tape.scale.z = Math.max(.001, 1 - glide(seg(t, 4.1, 4.45)));
+      const cut = seg(t, 3.0, 3.6); setLit(box.tapeM, C.cyan, .2 + 3 * Math.sin(Math.PI * cut)); box.tape.scale.z = Math.max(.001, 1 - glide(seg(t, 3.4, 3.7)));
       const [lx, ly, lz, lm] = lidAt(t); box.lid.position.set(lx, ly, lz); box.lid.rotation.set(0, -.25 * lm, -.2 * Math.sin(Math.PI * lm));
       // 4. шлем поднимается, поворачивается к камере, раскладывается и собирается
-      const up = glide(seg(t, 6.0, 6.9)) * (1 - glide(seg(t, 9.5, 10.4))), tilt = glide(seg(t, 6.3, 7.1)) * (1 - glide(seg(t, 9.0, 9.7)));
+      const up = glide(seg(t, 5.05, 5.85)) * (1 - glide(seg(t, 10.25, 11.0))), tilt = glide(seg(t, 5.3, 6.05)) * (1 - glide(seg(t, 9.8, 10.4)));
       VG.position.set(P.x, lerp(restY, upY, up) + .06 * Math.sin(t * 1.6) * up, P.z);
-      VG.rotation.set(-Math.PI / 2 + tilt * 1.25, Math.sin((t - 6) * .7) * .25 * tilt, 0);
-      const ex = glide(seg(t, 7.25, 7.8)) * (1 - glide(seg(t, 8.5, 9.0)));
+      VG.rotation.set(-Math.PI / 2 + tilt * 1.25, Math.sin((t - 5) * .7) * .25 * tilt, 0);
+      const ex = glide(seg(t, 6.15, 6.65)) * (1 - glide(seg(t, 9.45, 9.95)));
       vr.parts.forEach(p => p.m.position.copy(p.base).addScaledVector(p.v, ex * .5));
-      vr.parts[8].m.scale.set(1, 1, lerp(.22, 1, glide(seg(t, 6.3, 7.0)) * (1 - glide(seg(t, 9.6, 10.3)))));
-      VG.updateMatrixWorld(true);
-      const cv = glide(seg(t, 7.6, 7.95)) * (1 - seg(t, 8.3, 8.55));
-      cos.forEach(c => { c.part.getWorldPosition(wp); wl.copy(c.lp); vr.g.localToWorld(wl); c.sp.position.copy(wl); c.sp.material.opacity = cv; c.sp.visible = cv > .01; const a = c.ln.geometry.attributes.position; a.setXYZ(0, wp.x, wp.y, wp.z); a.setXYZ(1, wl.x, wl.y, wl.z); a.needsUpdate = true; c.ln.material.opacity = cv * .9; c.ln.visible = cv > .01; });
-      setLit(vr.led, C.cyan, .1 + 1.6 * seg(t, 6.9, 7.2));
+      vr.parts[8].m.scale.set(1, 1, lerp(.22, 1, glide(seg(t, 5.3, 6.0)) * (1 - glide(seg(t, 10.2, 10.9)))));
+      setLit(vr.led, C.cyan, .1 + 1.6 * seg(t, 5.85, 6.1));
       // 5. шлем на месте: кольцо подиума загорается, волна света по полу
-      ENV.ring(glide(seg(t, lk, lk + .5)) * (1 - .45 * glide(seg(t, 12, 12.8))));
+      ENV.ring(glide(seg(t, lk, lk + .5)) * (1 - .45 * glide(seg(t, 12.4, 13.2))));
       const sk = seg(t, lk, lk + 1.2); shock.position.set(P.x, .03, P.z); shock.scale.setScalar(lerp(4.4, 16, E.outCubic(sk))); shock.material.opacity = sk > 0 && sk < 1 ? (1 - sk) * .7 : 0;
       fx.position.set(P.x, 2.4, P.z + 4.6); fx.material.opacity = Math.sin(seg(t, lk - .05, lk + .5) * Math.PI) * .8;
-      TT.update(t, 11.85);
+      TT.update(t, 11.95);
       cam(t);
+      // проекция точек сносок в кадр (координаты SVG 1600×900)
+      VG.updateMatrixWorld(true); S.cam.updateMatrixWorld();
+      cos.forEach(c => {
+        c.part.getWorldPosition(wp); wl.copy(c.lp); vr.g.localToWorld(wl);
+        const a = wp.project(S.cam), b = wl.project(S.cam);
+        c.ok = a.z < 1 && b.z < 1; c.ax = (a.x + 1) * 800; c.ay = (1 - a.y) * 450; c.bx = (b.x + 1) * 800; c.by = (1 - b.y) * 450; c.side = c.bx >= c.ax ? 1 : -1;
+      });
     },
-    ov(t, q) { fade(q.bug, t, 12.2); },
+    // для выгрузки аниматика в Blender: точки сносок в мире и их видимость
+    exportCallouts(t) { return cos.map((c, i) => { c.part.getWorldPosition(wp); wl.copy(c.lp); vr.g.localToWorld(wl); const T0 = 6.5 + i * .2, T1 = 8.85 + i * .07; return { num: VR_CO[i][0], title: c.title, sub: VR_CO[i][2], a: wp.toArray(), b: wl.toArray(), vis: t >= T0 && t < T1 + .25 ? 1 : 0 }; }); },
+    ov(t, q) {
+      fade(q.bug, t, 12.2);
+      cos.forEach((c, i) => {
+        // все сноски сворачиваются до склейки на сборку (9.45)
+        const T0 = 6.5 + i * .2, T1 = 8.85 + i * .07, g = q['cg' + i], card = q['cc' + i];
+        const a = seg(t, T0, T0 + .22), l = seg(t, T0 + .12, T0 + .5), cin = E.outCubic(seg(t, T0 + .45, T0 + .8)), out = E.inCubic(seg(t, T1, T1 + .25));
+        const vis = c.ok && a > 0 && out < 1;
+        g.style.display = vis ? '' : 'none'; card.style.display = vis && cin > 0 ? '' : 'none';
+        if (!vis) return;
+        const [pulse, ring, dot, ln] = g.children, k = 1 - out;
+        ring.setAttribute('cx', c.ax); ring.setAttribute('cy', c.ay); ring.setAttribute('r', 9 * E.outBack(a) * k);
+        dot.setAttribute('cx', c.ax); dot.setAttribute('cy', c.ay); dot.setAttribute('r', 3.6 * k);
+        const ph = ((t - T0) * 1.1) % 1; pulse.setAttribute('cx', c.ax); pulse.setAttribute('cy', c.ay); pulse.setAttribute('r', 10 + 24 * ph); pulse.style.opacity = (1 - ph) * .7 * k;
+        // выноска: от детали по диагонали к излому, затем горизонтально к карточке
+        // карточка не выходит за безопасную зону кадра: излом и конец выноски сдвигаются внутрь
+        const cw = card.offsetWidth / card.parentElement.clientWidth * 1600, ch = card.offsetHeight / card.parentElement.clientHeight * 900;
+        let bx = c.bx, ex = bx + c.side * 70;
+        if (c.side > 0 && ex + cw + 8 > 1520) { ex = 1520 - cw - 8; bx = ex - 70; }
+        if (c.side < 0 && ex - cw - 8 < 80) { ex = 80 + cw + 8; bx = ex + 70; }
+        const ey = clamp(c.by, 45 + ch / 2, 855 - ch / 2), L1 = Math.hypot(bx - c.ax, ey - c.ay), L = L1 + 70;
+        ln.setAttribute('points', `${c.ax},${c.ay} ${bx},${ey} ${ex},${ey}`);
+        ln.style.strokeDasharray = L; ln.style.strokeDashoffset = L * (1 - l * k);
+        // карточка раскрывается от конца выноски, название печатается по буквам
+        card.style.left = (ex / 16) + '%'; card.style.top = (ey / 9) + '%';
+        card.style.transform = `translate(${c.side > 0 ? '.35cqw' : 'calc(-100% - .35cqw)'}, -50%)`; card.classList.toggle('l', c.side < 0);
+        const r = (1 - cin * k) * 100; card.style.clipPath = c.side > 0 ? `inset(0 ${r}% 0 0)` : `inset(0 0 0 ${r}%)`;
+        const [n, tt, s, bar] = card.children, typed = Math.ceil(c.title.length * seg(t, T0 + .4, T0 + .85));
+        tt.children[1].textContent = c.title.slice(0, typed) + (typed < c.title.length && typed > 0 ? '▍' : '');
+        s.style.opacity = seg(t, T0 + .7, T0 + 1.0);
+        n.style.background = `rgba(0,217,255,${.9 * (1 - seg(t, T0 + .45, T0 + .9))})`; n.style.color = seg(t, T0 + .45, T0 + .9) < .5 ? '#06101a' : '#00D9FF';
+        bar.style.width = `calc((100% - 1.4cqw) * ${seg(t, T0 + .6, T0 + 1.1)})`;
+      });
+    },
   };
 }
 
@@ -1805,15 +1872,15 @@ function buildBumper() {
   pg.rotateX(-Math.PI / 2); pg.translate(0, BV, 0);
   const capM = new THREE.MeshPhysicalMaterial({ color: 0x171c26, metalness: .85, roughness: .34, anisotropy: .8, clearcoat: .15, clearcoatRoughness: .5, envMapIntensity: 1.0 });
   const edgeM = new THREE.MeshPhysicalMaterial({ color: 0xd9e1ec, metalness: 1, roughness: .14, envMapIntensity: 1.5 });
-  const P = new THREE.Mesh(pg, [capM, edgeM]); P.castShadow = P.receiveShadow = true; S.scene.add(P);
+  const P = new THREE.Mesh(pg, [capM, edgeM]); P.castShadow = P.receiveShadow = true; P.name = 'Пластина'; S.scene.add(P);
   // стеклянная вставка на дне выреза: по ней бежит световая полоса
   const band = cnv(1024, 8, q => { const g = q.createLinearGradient(0, 0, 1024, 0); g.addColorStop(0, 'rgb(40,40,40)'); g.addColorStop(.42, 'rgb(46,46,46)'); g.addColorStop(.5, '#fff'); g.addColorStop(.58, 'rgb(46,46,46)'); g.addColorStop(1, 'rgb(40,40,40)'); q.fillStyle = g; q.fillRect(0, 0, 1024, 8); });
   band.wrapS = THREE.RepeatWrapping; band.repeat.set(1 / 30, 1);
   const inM = new THREE.MeshStandardMaterial({ color: 0x0a161c, roughness: .75, emissive: C.cyan, emissiveMap: band, emissiveIntensity: 2 }); // матовое стекло: без зеркального блика от подсветки
   const ig = new THREE.ExtrudeGeometry(new THREE.Shape(ePts), { depth: TOP - ink - .05, bevelEnabled: false, curveSegments: 48 }); ig.rotateX(-Math.PI / 2); ig.translate(0, .05, 0);
-  const inlay = new THREE.Mesh(ig, inM); inlay.receiveShadow = true; S.scene.add(inlay);
+  const inlay = new THREE.Mesh(ig, inM); inlay.receiveShadow = true; inlay.name = 'Вставка Е'; S.scene.add(inlay);
   // пол: тёмный полированный камень
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(220, 220), new THREE.MeshStandardMaterial({ color: 0x0a0d13, roughness: .82, metalness: .1, envMapIntensity: .4 })); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; S.scene.add(floor);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(220, 220), new THREE.MeshStandardMaterial({ color: 0x0a0d13, roughness: .82, metalness: .1, envMapIntensity: .4 })); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; floor.name = 'Пол'; S.scene.add(floor);
   // верхний софтбокс: мягкое пятно света вокруг пластины
   const top = new THREE.SpotLight(0xe9f0ff, 380, 40, .5, 1, 2); top.position.set(0, 22, 3); top.target.position.set(0, 0, 0); S.scene.add(top, top.target);
   // скользящий блик: небольшой источник проходит над пластиной
@@ -1861,9 +1928,9 @@ const PIECES = [
     beats: [[0, 'Диск крутится'], [1.9, 'Крышка закрывается'], [3.0, '«Плюс»: звёзды загораются'], [4.65, '«Минус» гасит звезду'], [5.35, 'Звезда возвращается'], [5.8, 'Штамп в краске'], [6.9, 'Перелёт к коробке'], [9.82, 'Удар: оттиск и пятая звезда'], [10.45, 'Штамп переворачивается'], [12.3, 'Финал: «ВЕРДИКТ»']] },
   { id: 'gadget', name: '«Гаджетотека»', build: buildGadget, accent: '#00D9FF', dur: 15,
     pal: [['#00D9FF', 'Свет, сноски'], ['#232B3B', 'Циклорама'], ['#A7B1BF', 'Алюминий'], ['#07090D', 'Стекло шлема']],
-    text: ['Предметная студия: бесшовный фон-циклорама со светлым горизонтом, верхний софтбокс, поворотный подиум со световым кольцом и экспонаты на плинтах. Портативная консоль, геймпад и наушники включаются один за другим. Подиум доворачивает к камере закрытую коробку с рисунком VR-шлема. Световой нож проходит по ленте-пломбе, крышка поднимается, уходит за подиум и ложится на пол.', 'Из ложемента поднимается VR-шлем — изогнутое тёмное стекло, алюминиевая рамка, вязаный ремень. Он поворачивается к камере и раскладывается на детали со сносками: DISPLAY GLASS, DIGITAL CROWN, LENSES, LIGHT SEAL, KNIT BAND. Собравшись, шлем ложится в коробку, загорается кольцо подиума, по полу идёт световая волна, гаджеты на плинтах отвечают вспышкой. Финал сверху: подиум, экспонаты и крупный титр «ГАДЖЕТОТЕКА».'],
-    meta: [['Хронометраж', '15 с · 450 кадров'], ['Камера', '10 планов без повторов: макро консоли, макро геймпада, общий план студии, макро ленты, крышка сверху, подъём шлема, облёт со сносками, сборка снизу, низкий проезд у подиума, финал сверху'], ['Звук', 'Писки включения, мотор подиума, разрез ленты, шорох крышки, механика раскладки и сборки, щелчок ложемента']],
-    beats: [[0, 'Консоль включается'], [1.55, 'Геймпад'], [2.45, 'Наушники'], [3.6, 'Свет режет ленту'], [4.4, 'Крышка снимается'], [6.0, 'VR-шлем поднимается'], [7.25, 'Раскладка со сносками'], [8.5, 'Сборка'], [9.5, 'Шлем ложится в коробку'], [10.4, 'Кольцо подиума, волна'], [11.85, 'Финал: «ГАДЖЕТОТЕКА»']] },
+    text: ['Предметная студия: бесшовный фон-циклорама со светлым горизонтом, верхний софтбокс, поворотный подиум со световым кольцом и экспонаты на плинтах. Портативная консоль, геймпад и наушники включаются один за другим. Подиум доворачивает к камере закрытую коробку с рисунком VR-шлема. Световой нож проходит по ленте-пломбе, крышка поднимается, уходит за подиум и ложится на пол.', 'Из ложемента поднимается VR-шлем — изогнутое тёмное стекло, алюминиевая рамка, вязаный ремень. Он раскладывается на детали, и к ним по очереди выходят сноски-карточки: от детали прочерчивается выноска, раскрывается карточка с номером, название печатается по буквам, ниже короткое пояснение — «Стекло дисплея», «Колёсико», «Линзы», «Светозащита», «Вязаный ремень». Сноски держатся около двух с половиной секунд на двух планах, затем сворачиваются, шлем собирается и ложится в коробку, загорается кольцо подиума. Финал сверху: подиум, экспонаты и крупный титр «ГАДЖЕТОТЕКА».'],
+    meta: [['Хронометраж', '15 с · 450 кадров'], ['Камера', '11 планов без повторов: макро консоли, макро геймпада, общий план студии, макро ленты, крышка сверху, подъём шлема, облёт справа, наезд снизу слева, сборка сбоку, низкий проезд у подиума, финал сверху'], ['Звук', 'Писки включения, мотор подиума, разрез ленты, шорох крышки, щелчки сносок, механика раскладки и сборки, щелчок ложемента']],
+    beats: [[0, 'Консоль включается'], [1.2, 'Геймпад'], [2.0, 'Наушники'], [3.0, 'Свет режет ленту'], [3.75, 'Крышка снимается'], [5.05, 'VR-шлем поднимается'], [6.15, 'Раскладка на детали'], [6.5, 'Сноски выходят по очереди'], [8.85, 'Сноски сворачиваются'], [9.45, 'Сборка'], [10.25, 'Шлем ложится в коробку'], [11.0, 'Кольцо подиума, волна'], [11.95, 'Финал: «ГАДЖЕТОТЕКА»']] },
   { id: 'bumper', name: 'Отбивка', build: buildBumper, accent: '#00D9FF', dur: 5,
     pal: [['#171C26', 'Анодированная пластина'], ['#D9E1EC', 'Алмазная фаска'], ['#00D9FF', 'Стеклянная вставка'], ['#E6EEF8', 'Плашка «РЕКЛАМА»']],
     text: ['Знак Е вырезан фрезой в толстой пластине из тёмного анодированного металла. Кромки выреза сняты алмазной фаской и блестят светлым алюминием, на дне лежит вставка из матового стекла с подсветкой. Над пластиной проходит блик и скользит по фаске, по стеклу бежит световой импульс.', 'Три плана: макро вдоль верхней перекладины знака, импульс идёт навстречу камере; блик по плоскости пластины и нижней дуге знака; отъезд с креном на общий план, знак загорается целиком. В углу постоянно стоит логотип канала, внизу слева плашка «РЕКЛАМА».'],
@@ -1936,7 +2003,7 @@ resize();
 $('loading').hidden = true;
 
 // для покадрового экспорта
-window.__etv = { seek(i, t) { if (cur !== PIECES[i]) select(i, false); playing = false; time = t; frame(performance.now(), true); }, durs: PIECES.map(p => p.dur) };
+window.__etv = { pieces: PIECES, THREE, seek(i, t) { if (cur !== PIECES[i]) select(i, false); playing = false; time = t; frame(performance.now(), true); }, durs: PIECES.map(p => p.dur) };
 
 function frame(now, once) {
   const dt = Math.min(.05, (now - last) / 1000); last = now;
