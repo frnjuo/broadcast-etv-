@@ -31,6 +31,7 @@ const fs = require('fs');
     walk(S.scene, false);
     const effVis = o => {
       if (!o.visible) return 0;
+      if (o.userData.visFrom) return o.userData.visFrom.material.opacity > .05 ? 1 : 0;
       if (o.userData.text) return o.children.some(c => c.material && c.material.opacity > .05) ? 1 : 0;
       const m = o.material; if (m && !Array.isArray(m) && m.transparent && m.opacity < .05) return 0;
       return 1;
@@ -53,7 +54,8 @@ const fs = require('fs');
       });
       S.cam.updateMatrixWorld();
       const cp = new T.Vector3(), cq = new T.Quaternion(), cs = new T.Vector3(); S.cam.matrixWorld.decompose(cp, cq, cs);
-      cam.push([cp.x, cp.y, cp.z, cq.x, cq.y, cq.z, cq.w, S.cam.fov, S.focus]);
+      const vw = S.cam.view && S.cam.view.enabled ? S.cam.view : null;
+      cam.push([cp.x, cp.y, cp.z, cq.x, cq.y, cq.z, cq.w, S.cam.fov, S.focus, vw ? vw.offsetX / vw.fullWidth : 0, vw ? -vw.offsetY / vw.fullWidth : 0]);
       if (inst.exportCallouts) callouts.push(inst.exportCallouts(t));
     }
     const anim = {}; nodes.forEach((o, j) => { if (rec[j]) anim[o.name] = Array.from(rec[j], v => Math.round(v * 1e5) / 1e5); });

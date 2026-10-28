@@ -94,6 +94,10 @@ for i in range(4): put(cb, 'rotation_quaternion', i, [v[i] for v in CQ], CONST)
 cdb = bag(cd, 'Камера: объектив')
 put(cdb, 'lens', 0, [12 / math.tan(math.radians(c[7]) / 2) for c in C], CONST)
 put(cdb, 'dof.focus_distance', 0, [c[8] for c in C], CONST)
+# смещение объектива: композиция по третям, как в ролике
+if any(len(c) > 9 and (c[9] or c[10]) for c in C):
+    put(cdb, 'shift_x', 0, [c[9] if len(c) > 9 else 0 for c in C], CONST)
+    put(cdb, 'shift_y', 0, [c[10] if len(c) > 9 else 0 for c in C], CONST)
 cd.dof.use_dof = False
 
 # маркеры: склейки планов и события монтажного листа

@@ -166,7 +166,7 @@ h1{font-family:var(--display);font-weight:800;font-size:clamp(20px,3vw,30px);lin
     <h2>Система пакета</h2>
     <p>Стилистика взята из референса Le Échiquier, кроме цвета и айдентики: низкое боковое солнце, длинные мягкие тени, финал сверху. У каждой заставки своё окружение: ночной стол игрока с телевизором и подсвеченной стеной, стол критика с кожаной подложкой, полкой игр и лампой, предметная студия с циклорамой и подиумом. В кадре только узнаваемые предметы игровой индустрии в языке дорогого промышленного дизайна: графит soft-touch, керамика, алюминий, тёмное стекло, перфорация и тонкая гравировка. Консоль, геймпад, картриджи, коробка с игрой, звёзды оценки и тумблеры, штамп, VR-шлем, наушники — у каждого предмета есть ответ на вопрос «что это?». Мягкое затенение в стыках, виньетка и плёночное зерно дают картинке глубину. Отбивка сделана по мотивам референса Пятого канала: знак Е вырезан фрезой в анодированной пластине, по алмазной фаске скользит блик, по стеклянной вставке бежит свет.</p>
     <ul>
-      <li><b>Логика действия.</b> Каждое событие вызывает следующее. В заставке канала: кнопка на геймпаде, импульс по кабелю будит консоль, картридж с Е входит в слот, включается телевизор. В «Вердикте»: диск в коробке, звёзды оценки, штамп в краске, удар по коробке и переворот. В «Гаджетотеке»: гаджеты включаются, коробка распаковывается, VR-шлем раскладывается на детали. В отбивке: блик по фаске фрезерованного знака.</li>
+      <li><b>Логика действия.</b> Каждое событие вызывает следующее. В заставке канала: кнопка на геймпаде, импульс по кабелю будит консоль, картридж с Е входит в слот, включается телевизор. В «Вердикте»: диск в коробке, звёзды оценки, штамп в краске, удар по бланку рецензии — оттиск «ВЕРДИКТ» становится титром. В «Гаджетотеке»: гаджеты включаются, коробка распаковывается, VR-шлем раскладывается на детали. В отбивке: блик по фаске фрезерованного знака.</li>
       <li><b>Ничего из ниоткуда.</b> Все предметы лежат на столе с первого кадра. Новое появляется только физически: поднимается из прорези, выезжает по дорожке или заезжает в кадр с края.</li>
       <li><b>Одно пространство.</b> Каждый ролик снят в своём пространстве по одной временной шкале. При смене плана камера показывает ту же сцену с новой точки и не повторяет уже показанное, действие не сбрасывается.</li>
       <li><b>Материалы.</b> Графит soft-touch, керамика, анодированный и полированный алюминий, тёмное стекло, кожа, камень, тёмный орех и ткань. Свет живёт внутри предметов: светодиодные полосы, кольца, экраны и подсветка стен, акцентный цвет загорается только на главном предмете.</li>
@@ -547,19 +547,22 @@ function makeStage() {
 /* монтаж камеры: планы с жёсткими склейками внутри одного пространства.
    план: { t0, t1, p0, p1, l0, l1, fov, roll, fp, ap, top, e } или fn(k, t) → [pos, look] */
 const L3 = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2], b[2], k)];
-const soft = k => lerp(k, sine(k), .6), glide = k => E.inOutCubic(k);
+const soft = k => lerp(k, sine(k), .18), glide = k => E.inOutCubic(k);
 function shots(S, list) {
   return (t, sh = 0) => {
     let s = list[list.length - 1];
     for (const x of list) if (t < x.t1) { s = x; break; }
-    const k = (s.e || soft)(seg(t, s.t0, s.t1)), cam = S.cam;
+    const k = (s.e || soft)(seg(t, s.t0, s.t1)), cam = S.cam; S.shotId = list.indexOf(s); S.mb = s.mb ?? 1;
     const [p, l] = s.fn ? s.fn(k, t) : [L3(s.p0, s.p1 || s.p0, k), L3(s.l0, s.l1 || s.l0, k)];
     const fov = s.fov ? lerp(s.fov[0], s.fov[1] ?? s.fov[0], k) : 35;
     if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
-    cam.position.set(p[0] + Math.sin(t * 93) * sh, p[1] + Math.cos(t * 71) * sh, p[2]);
+    // тряска удара: затухающие колебания 6–10 Гц, а не шум выше частоты кадров
+    cam.position.set(p[0] + (Math.sin(t * 38) * .6 + Math.sin(t * 61 + 1.3) * .4) * sh, p[1] + (Math.cos(t * 44) * .6 + Math.sin(t * 57 + .7) * .4) * sh, p[2]);
     if (s.top) cam.up.set(0, 0, -1); else cam.up.set(0, 1, 0);
     cam.lookAt(l[0], l[1], l[2]);
     if (s.roll) cam.rotateZ(lerp(s.roll[0], s.roll[1] ?? s.roll[0], k) * Math.PI / 180);
+    const th = typeof s.third === 'function' ? s.third(k, t) : s.third;
+    if (th) cam.setViewOffset(1600, 900, -th[0] * 1600 / 6, -th[1] * 900 / 6, 1600, 900); else if (cam.view && cam.view.enabled) cam.clearViewOffset();
     const fp = s.fp ? (typeof s.fp === 'function' ? s.fp(t) : s.fp) : l; S.focus = cam.position.distanceTo(V(...fp)); S.ap = (s.ap ?? .004) * .45;
     // низкое боковое солнце — длинные мягкие тени, как в референсе
     S.key.position.set(l[0] - 13, 10, l[2] - 5); S.key.target.position.set(l[0], 0, l[2]);
@@ -1237,16 +1240,58 @@ function makeStamp(title, sub, o = {}) {
   const face = new THREE.Group(); face.rotation.x = Math.PI; face.position.y = -.002; g.add(face);
   const fp = new THREE.Mesh(slb(W - .3, .02, Dd - .3, .55), rub); fp.position.y = -.02; face.add(fp);
   face.add(neonLoop(rrPts(W - .9, Dd - .9, .42), .012, .03, neonMat(0xe0d4ff, 1.4, .9)));
-  const T = makeText([{ s: title, c: '#F2EEFF', side: '#3a2a6a' }], { h: o.th ?? 1.85, layers: 3, depth: .03, noShadow: true, skew: 0 }); T.g.position.set(0, .006, -.4); face.add(T.g); T.show(1);
-  const Sb = makeText([{ s: sub, c: '#cbbcf5' }], { font: `600 120px ${MONO}`, h: 1.0, layers: 1, skew: 0, track: 22, noShadow: true }); Sb.g.position.set(0, .008, 1.45); face.add(Sb.g); Sb.show(1);
+  // o.mirror: резина зеркальная, как у настоящей печати — оттиск на бумаге читается правильно
+  const T = makeText([{ s: title, c: '#F2EEFF', side: '#3a2a6a' }], { h: o.th ?? 1.85, layers: 3, depth: .03, noShadow: true, skew: 0 }); T.g.position.set(0, .006, o.tz ?? -.4); face.add(T.g); T.show(1);
+  const Sb = makeText([{ s: sub, c: '#cbbcf5' }], { font: `600 120px ${MONO}`, h: o.sh ?? 1.0, layers: 1, skew: 0, track: 22, noShadow: true }); Sb.g.position.set(0, .008, o.sz ?? 1.45); face.add(Sb.g); Sb.show(1);
+  if (o.mirror) { T.g.scale.z = -1; Sb.g.scale.z = -1; }
   return { g, body, band, rub, W, D: Dd, ink(k) { rub.emissiveIntensity = .03 + .5 * k; }, charge(k) { band.opacity = .25 + .65 * k; } };
 }
+// бланк рецензии: плотная бумага, шапка, колонки «плюсы» и «минусы» тонкими строками
+function makeReviewCard(W = 12.5, D = 8) {
+  const g = new THREE.Group(), cw = 1600, ch = Math.round(cw * D / W), u = cw / W;
+  const paper = new THREE.MeshStandardMaterial({ color: 0xe4e0d8, roughness: .92, envMapIntensity: .35 });
+  meshTo(g, slb(W, .06, D, .22), paper, [0, 0, 0]);
+  const tex = cnv(cw, ch, q => {
+    q.fillStyle = 'rgba(40,42,52,.05)'; for (let i = 0; i < 2600; i++) q.fillRect(Math.random() * cw, Math.random() * ch, 1.5, 1.5);
+    const ink = 'rgba(38,40,50,.82)', soft = 'rgba(38,40,50,.32)';
+    q.fillStyle = ink; q.font = `600 ${.3 * u}px ${MONO}`; q.textBaseline = 'middle';
+    q.fillText('РЕЦЕНЗИЯ  № 047', .7 * u, .75 * u);
+    q.fillRect(.7 * u, 1.2 * u, cw - 1.4 * u, 2);
+    q.font = `800 ${.62 * u}px Unbounded, sans-serif`; q.fillText('ОРБИТА', .7 * u, 1.95 * u);
+    q.font = `600 ${.26 * u}px ${MONO}`; q.fillStyle = soft; q.fillText('СЕЗОН 01  ·  ЧАСТЬ 2  ·  ПРИКЛЮЧЕНИЕ', .7 * u, 2.6 * u);
+    [['ПЛЮСЫ', .7], ['МИНУСЫ', W / 2 + .2]].forEach(([h, x], c) => {
+      q.fillStyle = ink; q.font = `600 ${.28 * u}px ${MONO}`; q.fillText(h, x * u, 3.35 * u);
+      q.fillStyle = soft; for (let i = 0; i < (c ? 2 : 3); i++) { const y = (3.85 + i * .45) * u, L = (W / 2 - 1.4) * (.55 + .4 * ((i * 37 + c * 11) % 10) / 10); q.fillRect(x * u, y, L * u, .1 * u); }
+    });
+    q.setLineDash([10, 8]); q.strokeStyle = 'rgba(38,40,50,.22)'; q.lineWidth = 2; q.strokeRect(.7 * u, 5.3 * u, cw - 1.4 * u, ch - 6.0 * u); q.setLineDash([]);
+    q.fillStyle = soft; q.font = `600 ${.22 * u}px ${MONO}`; q.fillText('ИТОГ', .85 * u, 5.6 * u);
+  });
+  const top = new THREE.Mesh(PL, new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: .9, polygonOffset: true, polygonOffsetFactor: -2 })); top.rotation.x = -Math.PI / 2; top.scale.set(W, D, 1); top.position.y = .062; g.add(top);
+  return { g, W, D };
+}
+// оттиск печати: фиолетовая краска с неровной фактурой; раскладка зеркальна лицу штампа
+function imprintTex(title, sub, W, D, th, sh, tz, sz) {
+  const cw = 1400, ch = Math.round(cw * D / W), u = cw / W, r = rng(7);
+  return cnv(cw, ch, q => {
+    q.strokeStyle = q.fillStyle = '#5a24d8'; q.lineJoin = 'round';
+    q.lineWidth = .07 * u; q.beginPath(); q.roundRect(.06 * u, .06 * u, cw - .12 * u, ch - .12 * u, .55 * u); q.stroke();
+    q.lineWidth = .04 * u; q.beginPath(); q.roundRect(.32 * u, .32 * u, cw - .64 * u, ch - .64 * u, .36 * u); q.stroke();
+    q.textAlign = 'center'; q.textBaseline = 'middle';
+    q.font = `800 ${th * 180 / 260 * u}px Unbounded, sans-serif`; q.fillText(title, cw / 2, (D / 2 - tz) * u);
+    q.font = `600 ${sh * 120 / 260 * u}px ${MONO}`; q.letterSpacing = `${sh * 22 / 260 * u}px`; q.fillText(sub, cw / 2, (D / 2 - sz) * u);
+    // краска ложится неровно: светлые зёрна и полосы непрокраса
+    q.globalCompositeOperation = 'destination-out';
+    for (let i = 0; i < 9000; i++) { q.fillStyle = `rgba(0,0,0,${.25 + r() * .6})`; const s = .6 + r() * 2.4; q.fillRect(r() * cw, r() * ch, s, s); }
+    for (let i = 0; i < 14; i++) { q.fillStyle = `rgba(0,0,0,${.08 + r() * .14})`; q.fillRect(0, r() * ch, cw, 2 + r() * 10); }
+    q.globalCompositeOperation = 'source-over';
+  });
+}
 // штемпельная подушка: алюминиевая коробочка, фиолетовая пропитка
-function makeInkPad() {
+function makeInkPad(W = 11.8, D = 6.2) {
   const g = new THREE.Group();
-  meshTo(g, slb(11.8, .42, 6.2, .8), PM.alu, [0, 0, 0]);
+  meshTo(g, slb(W, .42, D, .8), PM.alu, [0, 0, 0]);
   const pad = new THREE.MeshPhysicalMaterial({ color: 0x1e1240, roughness: .9, sheen: .6, sheenColor: new THREE.Color(0x7a35ff), emissive: C.violet, emissiveIntensity: .05 });
-  meshTo(g, slb(11.2, .08, 5.6, .6), pad, [0, .38, 0]);
+  meshTo(g, slb(W - .6, .08, D - .6, .6), pad, [0, .38, 0]);
   return { g, pad };
 }
 /* VR-шлем: изогнутое тёмное стекло, алюминиевая рамка, светозащитная маска, вязаный ремень, колёсико сверху */
@@ -1346,6 +1391,32 @@ const sane = new ShaderPass({
     void main() { vec4 c = texture2D(tDiffuse, vUv); if (any(isnan(c)) || any(isinf(c))) c = vec4(0., 0., 0., 1.); gl_FragColor = min(c, vec4(24.)); }`,
 });
 composer.insertPass(sane, 1);
+// размытие от движения камеры: пиксель восстанавливается в мир по глубине и проецируется камерой полкадра назад;
+// цвет усредняется вдоль экранного сдвига (затвор 180°). Глубину даёт проход боке, склейки размытие не получают.
+const mblur = new ShaderPass({
+  uniforms: { tDiffuse: { value: null }, tDepth: { value: null }, uPinv: { value: new THREE.Matrix4() }, uViewInv: { value: new THREE.Matrix4() }, uPrevVP: { value: new THREE.Matrix4() }, uK: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `#include <packing>
+    uniform sampler2D tDiffuse, tDepth; uniform mat4 uPinv, uViewInv, uPrevVP; uniform float uK; varying vec2 vUv;
+    void main() {
+      vec4 c0 = texture2D(tDiffuse, vUv);
+      if (uK <= 0.) { gl_FragColor = c0; return; }
+      float d = min(unpackRGBAToDepth(texture2D(tDepth, vUv)), .99999);
+      vec4 vp = uPinv * vec4(vUv * 2. - 1., d * 2. - 1., 1.); vp /= vp.w;
+      vec4 pc = uPrevVP * (uViewInv * vp);
+      vec2 v = (vUv - (pc.xy / pc.w * .5 + .5)) * uK; float L = length(v); if (L > .04) v *= .04 / L;
+      if (L < .0006) { gl_FragColor = c0; return; }
+      vec4 acc = vec4(0.); for (int i = 0; i < 12; i++) acc += texture2D(tDiffuse, vUv + v * (float(i) / 11. - .5));
+      gl_FragColor = acc / 12.;
+    }`,
+});
+composer.insertPass(mblur, composer.passes.indexOf(bokeh) + 1);
+const mbPrev = new THREE.Matrix4();
+function mbSet(S, prevVP, prevShot, k) {
+  S.cam.updateMatrixWorld();
+  const u = mblur.uniforms; u.tDepth.value = bokeh.renderTargetDepth.texture; u.uPinv.value.copy(S.cam.projectionMatrixInverse); u.uViewInv.value.copy(S.cam.matrixWorld); u.uPrevVP.value.copy(prevVP);
+  u.uK.value = k && prevShot === S.shotId ? (S.mb ?? 1) * QN('mb', 1) : 0;
+}
 function makeStageP(o = {}) {
   const S = makeStage();
   S.scene.environment = STUDIO; S.scene.background = new THREE.Color(0x080b12); S.scene.fog = new THREE.Fog(0x080b12, 28, 70);
@@ -1519,7 +1590,8 @@ function makeEnvStudio(S, o = {}) {
    ========================================================= */
 const tap = (t, tp, up = 9) => t < tp ? 0 : t < tp + .07 ? (t - tp) / .07 : Math.exp(-(t - tp - .07) * up);
 // план камеры, который следует за точкой: fn(t) → [позиция, цель]
-const follow = (t0, t1, fn, o = {}) => ({ t0, t1, fn: (k, t) => fn(t, k), fov: o.fov ?? [32, 32], fp: o.fp, ap: o.ap ?? .006, roll: o.roll });
+// камера, которая едет за объектом: объект неподвижен в кадре, поэтому размытие от движения камеры ослаблено
+const follow = (t0, t1, fn, o = {}) => ({ t0, t1, fn: (k, t) => fn(t, k), fov: o.fov ?? [32, 32], fp: o.fp, ap: o.ap ?? .006, roll: o.roll, mb: o.mb ?? .35, third: o.third });
 function buildIdent() {
   const S = makeStageP();
   const ENV = makeEnvDesk(S);
@@ -1535,7 +1607,7 @@ function buildIdent() {
   const carts = CARTS.map(([k, x, z]) => { const c = makeCartridge(k), w = new THREE.Group(); w.add(c.g); w.position.set(x, .25, z); w.rotation.x = -Math.PI / 2; w.name = k === 'e' ? 'Картридж Е' : 'Картридж ' + k; S.scene.add(w); return { ...c, w, x, z }; });
   const hero = carts[3];
   const hs = makeHeadset(); hs.g.position.set(9.3, .05, -4.6); hs.g.rotation.y = -.35; hs.g.name = 'Наушники'; S.scene.add(hs.g);
-  const TT = bigTitle(S, [{ s: 'ИГРОВОЙ КАНАЛ', h: 2.05, z: 2.75 }, { s: 'КИБЕРСПОРТ · РАЗВЛЕЧЕНИЯ · ОБРАЗОВАНИЕ · ЭНЕРГИЯ', h: .78, z: 4.25, font: `600 120px ${MONO}`, c: '#7fe9ff', layers: 1, skew: 0, track: 10, noShadow: true }], { x: 0, y: .07 });
+  const TT = bigTitle(S, [{ s: 'ИГРОВОЙ КАНАЛ', h: 2.05, z: 2.4 }, { s: 'КИБЕРСПОРТ · РАЗВЛЕЧЕНИЯ · ОБРАЗОВАНИЕ · ЭНЕРГИЯ', h: .78, z: 3.85, font: `600 120px ${MONO}`, c: '#7fe9ff', layers: 1, skew: 0, track: 10, noShadow: true }], { x: 0, y: .07 });
   const fx = streak(S, C.cyan), shock = shockRing(S, C.cyan);
   const slot = V(CX + con.sX, con.top + .05, CZ), hp = V();
   const cpose = t => {
@@ -1548,19 +1620,20 @@ function buildIdent() {
   const headT = t => t < 1.2 ? -1 : t < 2.8 ? glide(seg(t, 1.2, 2.8)) : 1.001;
   const cam = shots(S, [
     // 1. макро: кнопка «домой» и тачпад
-    { t0: 0, t1: 1.5, p0: [home.x + 3.1, 3.3, home.z + 3.4], p1: [home.x + 1.9, 2.3, home.z + 2.2], l0: [home.x - .2, home.y, home.z - .2], l1: [home.x - .3, home.y, home.z - .3], fov: [28, 28], roll: [4, 2], ap: .012 },
+    { t0: 0, t1: 1.5, p0: [home.x + 3.1, 3.3, home.z + 3.4], p1: [home.x + 1.9, 2.3, home.z + 2.2], l0: [home.x - .2, home.y, home.z - .2], l1: [home.x - .3, home.y, home.z - .3], fov: [28, 28], roll: [4, 2], ap: .012, third: [1, .8] },
     // 2. со стороны стены вдоль кабеля, за импульсом
-    follow(1.5, 2.7, t => { const k = clamp(headT(t), 0, 1); cab.curve.getPointAt(k, hp); return [[hp.x + 1.1, hp.y + 2.6, hp.z - 3.1], [hp.x - .9, hp.y + .1, hp.z + .3]]; }, { fov: [32, 32], ap: .01 }),
+    // точка слежения усреднена по участку кабеля: на изгибе у разъёма камера не дёргается
+    follow(1.5, 2.7, t => { const k = clamp(headT(t), 0, 1); hp.set(0, 0, 0); for (let j = -3; j <= 3; j++) hp.add(cab.curve.getPointAt(clamp(k + j * .025, 0, 1))); hp.divideScalar(7); return [[hp.x + 1.1, hp.y + 2.6, hp.z - 3.1], [hp.x, hp.y, hp.z]]; }, { fov: [32, 32], ap: .01, third: [-1, .8] }),
     // 3. фронт консоли: кольцо питания и светодиодная полоса
     { t0: 2.7, t1: 3.7, p0: [6.6, 2.3, 5.0], p1: [5.6, 2.0, 4.4], l0: [2.2, .7, -.6], l1: [1.6, .7, -.6], fov: [30, 30], ap: .01 },
     // 4. макро сверху: створки слота раскрываются, изнутри идёт свет
-    { t0: 3.7, t1: 5.0, p0: [slot.x + .3, 6.6, slot.z + .25], p1: [slot.x, 5.5, slot.z + .1], l0: [slot.x + .3, 0, slot.z + .24], l1: [slot.x, 0, slot.z + .09], fov: [34, 34], roll: [-16, -5], top: true, ap: .006 },
+    { t0: 3.7, t1: 5.0, p0: [slot.x + .3, 6.6, slot.z + .25], p1: [slot.x, 5.5, slot.z + .1], l0: [slot.x + .3, 0, slot.z + .24], l1: [slot.x, 0, slot.z + .09], fov: [34, 34], roll: [-16, -5], top: true, ap: .006, third: [-.8, -.5] },
     // 5. из-за библиотеки: картридж поднимается и разворачивается
-    follow(5.0, 6.3, (t, k) => { const p = cpose(t)[0]; return [[lerp(-12.6, -9.4, k), lerp(3.2, 4.3, k), lerp(3.0, 3.8, k)], [p.x, p.y - .5, p.z]]; }, { fov: [33, 33], fp: t => cpose(t)[0].toArray(), ap: .009 }),
+    follow(5.0, 6.3, (t, k) => { const p = cpose(t)[0]; return [[lerp(-12.6, -9.4, k), lerp(3.2, 4.3, k), lerp(3.0, 3.8, k)], [p.x, p.y, p.z]]; }, { fov: [33, 33], fp: t => cpose(t)[0].toArray(), ap: .009, third: [-1, -.8] }),
     // 6. макро у слота: картридж входит
-    follow(6.3, 7.95, (t, k) => { const p = cpose(t)[0]; return [[lerp(7.4, 6.4, k), lerp(4.0, 3.3, k), lerp(2.8, 1.9, k)], [lerp(p.x, slot.x, .6), Math.max(1.4, p.y - .3), lerp(p.z, slot.z, .6)]]; }, { fov: [30, 30], fp: [2.55, 1.6, -2.6], ap: .009 }),
+    follow(6.3, 7.95, (t, k) => { const p = cpose(t)[0]; return [[lerp(7.4, 6.4, k), lerp(4.0, 3.3, k), lerp(2.8, 1.9, k)], [lerp(p.x, slot.x, .25), Math.max(1.3, p.y), lerp(p.z, slot.z, .25)]]; }, { fov: [30, 30], fp: [2.55, 1.6, -2.6], ap: .009, third: [-1, -.8] }),
     // 7. через консоль на стену: телевизор включается
-    { t0: 7.95, t1: 9.4, p0: [3.6, 2.6, 6.6], p1: [2.6, 3.0, 6.2], l0: [-.4, 3.6, -10], l1: [-.6, 4.2, -10], fov: [34, 33], fp: [0, 1.1, -2.6], ap: .006 },
+    { t0: 7.95, t1: 9.4, p0: [3.6, 2.6, 6.6], p1: [2.6, 3.0, 6.2], l0: [-.4, 3.6, -10], l1: [-.6, 4.2, -10], fov: [34, 33], fp: [0, 1.1, -2.6], ap: .006, third: [.8, 1.2] },
     // 8. низкий общий план слева: знак Е загорается, подсветка заливает стену
     { t0: 9.4, t1: 11.2, p0: [-8.6, 3.0, 6.4], p1: [-6.4, 2.6, 5.4], l0: [.6, .9, -3.2], l1: [1.0, .9, -3.4], fov: [34, 33], roll: [-2, 0], ap: .006 },
     // 9. финал сверху
@@ -1595,95 +1668,99 @@ function buildIdent() {
 }
 
 /* =========================================================
-   2. ВЕРДИКТ · 15 с — стол критика: кожаная подложка, полка с коллекцией игр, архитекторская лампа
-   Диск крутится в коробке, крышка закрывается → «плюс» зажигает звёзды, «минус» гасит одну →
-   штамп набирает краску, летит к коробке и бьёт: оттиск, пятая звезда, предметы на столе подпрыгивают →
-   штамп переворачивается: «ВЕРДИКТ».
+   2. ВЕРДИКТ · 15 с — стол критика: кожаная подложка, бланк рецензии, полка с играми, лампа
+   Диск крутится в коробке, крышка закрывается → «плюс» зажигает звёзды, «минус» гасит одну и отпускает →
+   штамп набирает краску, летит к бланку и бьёт; пятая звезда загорается, предметы вздрагивают →
+   штамп уходит, на бланке остаётся фиолетовый оттиск «ВЕРДИКТ» — это и есть финальный титр.
    ========================================================= */
 function buildVerdict() {
-  const S = makeStageP(); S.neonCol = C.violet; S.rimK = .05; // точечные контровые бликуют квадратами на алюминии штампа
+  const S = makeStageP({ exposure: 1.24 }); S.neonCol = C.violet; S.rimK = .05;
   const ENV = makeEnvCritic(S), Y0 = .06; // верх кожаной подложки
-  const caseC = V(-7.7, Y0, -1.4), padC = V(17.5, 0, -1.6), fin = V(1.3, 3.55, -1.3), starZ = 3.55;
-  const gc = makeGameCase(); gc.g.position.copy(caseC); gc.g.name = 'Коробка игры'; gc.hinge.name = 'Крышка коробки'; S.scene.add(gc.g);
-  const imprint = new THREE.Mesh(PL, new THREE.MeshBasicMaterial({ map: cnv(720, 920, q => { q.strokeStyle = '#b48cff'; q.shadowColor = '#7A35FF'; q.shadowBlur = 24; q.lineWidth = 9; q.beginPath(); q.roundRect(60, 160, 600, 600, 70); q.stroke(); q.lineWidth = 7; q.beginPath(); q.roundRect(84, 184, 552, 552, 52); q.stroke(); q.lineWidth = 38; q.lineCap = q.lineJoin = 'round'; q.beginPath(); q.moveTo(210, 470); q.lineTo(320, 580); q.lineTo(520, 330); q.stroke(); }), transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
-  imprint.rotation.x = -Math.PI / 2; imprint.scale.set(gc.w - .3, gc.d - .3, 1); imprint.position.set(caseC.x, caseC.y + gc.topY + .01, caseC.z); imprint.name = 'Оттиск'; S.scene.add(imprint);
-  const rail = makeRail(5, 1.6); rail.position.set(fin.x, Y0, starZ); rail.name = 'Шкала оценки'; S.scene.add(rail);
-  const stars = [0, 1, 2, 3, 4].map(i => { const s = makeStar(.5); s.g.position.set(fin.x - 3.2 + i * 1.6, Y0 + .2, starZ); s.g.name = 'Звезда ' + (i + 1); S.scene.add(s.g); return s; });
-  const tp = makeToken('plus', C.cyan), tm = makeToken('minus', C.violet); tp.g.position.set(fin.x - 6.0, Y0, starZ); tm.g.position.set(fin.x + 6.0, Y0, starZ); tp.g.name = 'Тумблер плюс'; tm.g.name = 'Тумблер минус'; S.scene.add(tp.g, tm.g);
-  const pad = makePad(), PG = new THREE.Group(); PG.add(pad.g); pad.g.rotation.x = -Math.PI / 2; pad.g.position.y = .37; PG.scale.setScalar(1.5); PG.position.set(-8.6, Y0, 4.4); PG.rotation.y = -.35; PG.name = 'Геймпад'; S.scene.add(PG);
-  const ink = makeInkPad(); ink.g.position.copy(padC); ink.g.name = 'Штемпельная подушка'; S.scene.add(ink.g);
-  const st = makeStamp('ВЕРДИКТ', 'ОБЗОРЫ ИГР', { W: 11, D: 5.4, th: 1.85 }); st.g.name = 'Штамп'; S.scene.add(st.g);
+  ENV.spot.target.position.set(.6, 0, -.4); ENV.spot.intensity = 230;
+  const caseC = V(-8.5, Y0, -2.4), padC = V(18.5, 0, -1.6), starZ = 4.65, RX = .6;
+  // бланк рецензии и место оттиска
+  const card = makeReviewCard(13.4, 8.4); card.g.position.set(.6, Y0, -.9); card.g.name = 'Бланк рецензии'; S.scene.add(card.g);
+  const SW = 9.8, SD = 4.4, TH = 1.75, SH = .8, TZ = .32, SZ = -1.18;   // штамп: размер, кегли и места строк на лице
+  const I = V(.6, Y0 + .062, 1.15);                                      // центр оттиска на бланке
+  const imprint = new THREE.Mesh(PL, new THREE.MeshStandardMaterial({ map: imprintTex('ВЕРДИКТ', 'ОБЗОРЫ ИГР', SW - .3, SD - .3, TH, SH, TZ, SZ), transparent: true, opacity: 0, roughness: .55, emissive: 0x2a0f6a, emissiveIntensity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }));
+  imprint.rotation.x = -Math.PI / 2; imprint.scale.set(SW - .3, SD - .3, 1); imprint.position.copy(I).y += .004; imprint.name = 'Оттиск'; S.scene.add(imprint);
+  // для аниматика в Blender: строки оттиска как текст, видимы вместе с оттиском (в кадре ничего не рисуют)
+  [['ВЕРДИКТ', TH, 180, TZ], ['ОБЗОРЫ ИГР', SH, 120, SZ]].forEach(([str, h, px, z]) => { const g = new THREE.Group(); g.position.set(I.x, I.y + .01, I.z - z); g.userData.text = { s: str, h, px, depth: 0 }; g.userData.visFrom = imprint; S.scene.add(g); });
+  const gc = makeGameCase(); gc.g.position.copy(caseC); gc.g.rotation.y = .12; gc.g.name = 'Коробка игры'; gc.hinge.name = 'Крышка коробки'; S.scene.add(gc.g);
+  const rail = makeRail(5, 1.6); rail.position.set(RX, Y0, starZ); rail.name = 'Шкала оценки'; S.scene.add(rail);
+  const stars = [0, 1, 2, 3, 4].map(i => { const s = makeStar(.5); s.g.position.set(RX - 3.2 + i * 1.6, Y0 + .2, starZ); s.g.name = 'Звезда ' + (i + 1); S.scene.add(s.g); return s; });
+  const tp = makeToken('plus', C.cyan), tm = makeToken('minus', C.violet); tp.g.position.set(RX - 6.0, Y0, starZ); tm.g.position.set(RX + 6.0, Y0, starZ); tp.g.name = 'Тумблер плюс'; tm.g.name = 'Тумблер минус'; S.scene.add(tp.g, tm.g);
+  const pad = makePad(), PG = new THREE.Group(); PG.add(pad.g); pad.g.rotation.x = -Math.PI / 2; pad.g.position.y = .37; PG.scale.setScalar(1.45); PG.position.set(-8.6, Y0, 3.9); PG.rotation.y = -.35; PG.name = 'Геймпад'; S.scene.add(PG);
+  const ink = makeInkPad(SW + .9, SD + .9); ink.g.position.copy(padC); ink.g.name = 'Штемпельная подушка'; S.scene.add(ink.g);
+  const st = makeStamp('ВЕРДИКТ', 'ОБЗОРЫ ИГР', { W: SW, D: SD, th: TH, sh: SH, tz: TZ, sz: SZ, mirror: true }); st.g.name = 'Штамп'; S.scene.add(st.g);
   const fx = streak(S, C.violet), shock = shockRing(S, C.violet);
-  const SLAM = 9.82, inkY = .47, caseY = caseC.y + gc.topY + .02;
+  const SLAM = 8.75, inkY = .47, hitY = I.y + .004, up = 4.4;
+  const bump = (t, a, b) => (1 - Math.cos(2 * Math.PI * seg(t, a, b))) / 2; // плавный «туда-обратно» без рывка на краях
   const pose = t => {
-    let p = V(padC.x, inkY, padC.z), rx = 0, tilt = 0;
-    p.y = inkY - .08 * Math.sin(Math.PI * seg(t, 5.8, 6.15));
-    if (t > 6.15) p.y = lerp(inkY, 4.2, glide(seg(t, 6.15, 7.0)));
-    if (t > 6.9) { const k = glide(seg(t, 6.9, 9.35)); p.x = lerp(padC.x, caseC.x, k); p.z = lerp(padC.z, caseC.z, k); p.y += Math.sin(k * Math.PI) * 1.2; tilt = Math.sin(k * Math.PI) * .12; }
-    if (t > 9.35) p.y = 4.2 + .25 * Math.sin(Math.PI * seg(t, 9.35, 9.62));
-    if (t > 9.62) p.y = lerp(4.2, caseY, E.inCubic(seg(t, 9.62, SLAM)));
-    if (t > SLAM) {
-      const up = glide(seg(t, 10.0, 10.7)), mv = glide(seg(t, 10.4, 11.9)), fl = glide(seg(t, 10.45, 11.6));
-      p.set(lerp(caseC.x, fin.x, mv), caseY - .04 * Math.exp(-(t - SLAM) * 9) + up * 5.2, lerp(caseC.z, fin.z, mv));
-      if (t > 11.4) p.y = lerp(caseY + 5.2, fin.y, glide(seg(t, 11.4, 12.3))) + .03 * Math.sin((t - 12.3) * 1.6) * seg(t, 12.3, 12.8);
-      rx = Math.PI * fl;
+    const p = V(padC.x, inkY - .08 * bump(t, 5.0, 5.35), padC.z); let rx = 0, rz = 0;
+    if (t > 5.35) p.y = lerp(inkY, up, glide(seg(t, 5.35, 6.2)));
+    if (t > 6.1) { const k = glide(seg(t, 6.1, 8.2)); p.x = lerp(padC.x, I.x, k); p.z = lerp(padC.z, I.z, k); p.y += Math.sin(k * Math.PI) * 1.4; rz = -Math.sin(k * Math.PI) * .1; rx = Math.sin(k * Math.PI) * .06; }
+    if (t > 8.2) p.y = up + .32 * bump(t, 8.2, 8.55);                                    // замах
+    if (t > 8.55) p.y = lerp(up, hitY, E.inCubic(seg(t, 8.55, SLAM)));                // удар
+    if (t > SLAM) p.y = hitY - .03 * Math.exp(-(t - SLAM) * 14) * Math.cos((t - SLAM) * 40); // резина пружинит
+    if (t > 9.15) {                                                                       // штамп отрывается и уходит к подушке
+      const l = glide(seg(t, 9.15, 9.9)), m = glide(seg(t, 9.75, 11.3));
+      p.set(lerp(I.x, padC.x, m), lerp(hitY, 4.8, l) + Math.sin(m * Math.PI) * .8 - lerp(0, 4.8 - inkY, glide(seg(t, 10.9, 11.5))), lerp(I.z, padC.z, m));
+      rx = -.12 * Math.sin(Math.PI * seg(t, 9.15, 10.2)); rz = .08 * Math.sin(m * Math.PI);
     }
-    return [p, rx, tilt];
+    return [p, rx, rz];
   };
-  // диск: скорость растёт, затем падает до нуля раньше, чем закроется крышка (угол — интеграл скорости, без отката назад)
-  const discA = t => { let a = 0; for (let x = 0; x < Math.min(t, 1.9); x += .01) a += .01 * lerp(2, 9, seg(x, 0, 1.0)) * (1 - glide(seg(x, 1.35, 1.85))); return a; };
+  const discA = t => { let a = 0; for (let x = 0; x < Math.min(t, 1.6); x += .01) a += .01 * lerp(2, 9, seg(x, 0, .9)) * (1 - glide(seg(x, 1.0, 1.5))); return a; };
   const disc = V(caseC.x, caseC.y + .2, caseC.z + .2), tok = tm.g.position, s4 = stars[3].g.position;
   const cam = shots(S, [
     // 1. макро: диск крутится в открытой коробке
-    { t0: 0, t1: 1.25, p0: [disc.x - 1.7, 1.6, disc.z + 2.3], p1: [disc.x - 1.2, 1.2, disc.z + 1.8], l0: [disc.x + .1, disc.y, disc.z], l1: [disc.x + .2, disc.y, disc.z - .1], fov: [28, 28], roll: [-3, -1], ap: .018 },
-    // 2. низко сзади, со стороны полки: крышка поднимается и закрывает коробку (спереди лампа бликовала на глянце крышки)
-    { t0: 1.25, t1: 2.65, p0: [-5.4, 1.5, -7.0], p1: [-6.1, 1.9, -6.1], l0: [-8.7, .9, -1.2], l1: [-8.0, .5, -1.2], fov: [32, 32], ap: .01 },
-    // 3. сверху: тумблер «плюс» и первая звезда
-    { t0: 2.65, t1: 3.85, p0: [-3.9, 7.6, starZ - .2], p1: [-3.2, 7.0, starZ - .2], l0: [-3.9, 0, starZ - .21], l1: [-3.2, 0, starZ - .21], fov: [34, 34], top: true, ap: .004 },
-    // 4. низкий проезд вдоль шкалы: звёзды загораются одна за другой
-    { t0: 3.85, t1: 4.7, p0: [-2.4, 2.4, starZ + 5.0], p1: [1.8, 2.2, starZ + 4.6], l0: [-.6, .3, starZ], l1: [2.4, .3, starZ], fov: [30, 30], ap: .01 },
-    // 5. макро «минус»: тумблер на переднем плане, четвёртая звезда гаснет за ним (фокус переводится)
-    { t0: 4.7, t1: 5.55, p0: [8.4, 1.3, 7.9], p1: [7.9, 1.15, 7.2], l0: [6.2, .35, 3.0], l1: [5.4, .35, 3.0], fov: [30, 30], fp: t => (t < 5.0 ? tok : s4).toArray(), ap: .014 },
-    // 6. штемпельная подушка: штамп набирает краску и поднимается, за ним — полка и лампа
-    { t0: 5.55, t1: 6.95, fn: (k, t) => { const p = pose(t)[0]; return [[padC.x + lerp(9.5, 8.6, k), lerp(3.6, 5.4, k), lerp(7.6, 7.0, k)], [p.x - .3, p.y + .2, p.z]]; }, fov: [32, 32], fp: t => pose(t)[0].toArray(), ap: .008 },
+    { t0: 0, t1: 1.2, p0: [disc.x - 1.7, 1.6, disc.z + 2.3], p1: [disc.x - 1.15, 1.2, disc.z + 1.75], l0: [disc.x + .1, disc.y, disc.z], l1: [disc.x + .2, disc.y, disc.z - .1], fov: [28, 28], roll: [-3, -1], ap: .018, third: [-1, .8] },
+    // 2. низко сзади: крышка закрывается, на ней обложка игры
+    { t0: 1.2, t1: 2.4, p0: [caseC.x + 3.2, 1.5, caseC.z - 5.6], p1: [caseC.x + 2.5, 1.9, caseC.z - 4.7], l0: [caseC.x - .9, .9, caseC.z + .2], l1: [caseC.x - .2, .5, caseC.z + .2], fov: [32, 32], ap: .01, third: [1, .7] },
+    // 3. сверху: тумблер «плюс», первая звезда
+    { t0: 2.4, t1: 3.3, p0: [RX - 4.6, 7.6, starZ - .2], p1: [RX - 3.8, 7.0, starZ - .2], l0: [RX - 4.6, 0, starZ - .21], l1: [RX - 3.8, 0, starZ - .21], fov: [34, 34], top: true, ap: .004 },
+    // 4. проезд вдоль шкалы: звёзды загораются одна за другой
+    { t0: 3.3, t1: 4.1, p0: [RX - 3.0, 2.4, starZ + 5.0], p1: [RX + 1.4, 2.2, starZ + 4.6], l0: [RX - 1.2, .3, starZ], l1: [RX + 1.8, .3, starZ], fov: [30, 30], ap: .01, third: [-1, -1] },
+    // 5. макро «минус»: тумблер, четвёртая звезда гаснет за ним (фокус переводится)
+    { t0: 4.1, t1: 4.9, p0: [RX + 7.8, 1.3, starZ + 4.3], p1: [RX + 7.3, 1.15, starZ + 3.6], l0: [RX + 6.0, .35, starZ], l1: [RX + 5.8, .35, starZ], fov: [30, 30], fp: t => (t < 4.45 ? tok : s4).toArray(), ap: .014, third: [1, .7] },
+    // 6. штемпельная подушка: штамп набирает краску и поднимается, за ним полка и лампа
+    { t0: 4.9, t1: 6.2, fn: (k, t) => { const p = pose(t)[0]; return [[padC.x + lerp(8.4, 7.6, k), lerp(3.2, 5.0, k), lerp(6.8, 6.2, k)], [p.x - .3, p.y + .2, p.z]]; }, fov: [32, 32], fp: t => pose(t)[0].toArray(), ap: .008, mb: .4, third: [1, .3] },
     // 7. погоня: камера идёт за штампом над столом
-    { t0: 6.95, t1: 9.35, fn: (k, t) => { const p = pose(t)[0], o = V(lerp(9.0, 4.0, k), lerp(4.6, 6.0, k), lerp(11.5, 12.5, k)); return [p.clone().add(o).toArray(), p.clone().add(V(-4.5, -1.6, -.4)).toArray()]; }, fov: [34, 34], fp: t => pose(t)[0].toArray(), ap: .006 },
-    // 8. удар: низко спереди справа
-    { t0: 9.35, t1: 10.35, p0: [-.2, 1.9, 10.4], p1: [-.9, 1.6, 9.4], l0: [-7.7, 3.1, -1.4], l1: [-7.7, 1.4, -1.4], fov: [36, 36], fp: [caseC.x, 1, caseC.z], ap: .006 },
-    // 9. общий план стола: штамп переворачивается, слева лампа, сзади полка с играми
-    { t0: 10.35, t1: 12.3, fn: (k, t) => { const p = pose(t)[0]; return [[lerp(-13.5, -7.0, k), lerp(6.6, 8.4, k), lerp(12.6, 13.4, k)], [p.x, p.y - .4, p.z]]; }, fov: [38, 36], fp: t => pose(t)[0].toArray(), ap: .005 },
-    // 10. финал сверху
-    { t0: 12.3, t1: 15, p0: [-1.1, 27.4, -.75], p1: [-1.1, 25.8, -.75], l0: [-1.1, 0, -.75], l1: [-1.1, 0, -.75], fov: [24, 24], top: true, fp: [1.3, 3.6, -1.3], ap: .0012 },
+    { t0: 6.2, t1: 8.15, fn: (k, t) => { const p = pose(t)[0], o = V(lerp(7.5, 3.6, k), lerp(4.4, 5.6, k), lerp(10.5, 11.5, k)); return [p.clone().add(o).toArray(), p.clone().add(V(-4.0, -1.8, -.4)).toArray()]; }, fov: [34, 34], fp: t => pose(t)[0].toArray(), ap: .006, mb: .3 },
+    // 8. спереди слева: штамп над бланком (снизу видна зеркальная резина), удар
+    { t0: 8.15, t1: 9.1, p0: [I.x - 8.0, 2.0, I.z + 7.2], p1: [I.x - 7.6, 3.6, I.z + 7.8], l0: [I.x + .4, 3.2, I.z - .4], l1: [I.x + .6, .4, I.z - .6], fov: [36, 38], fp: [I.x, 1.2, I.z], ap: .007 },
+    // 9. кран вверх: штамп уходит, на бланке остаётся оттиск
+    { t0: 9.1, t1: 10.9, p0: [I.x - 2.6, 4.6, I.z + 9.6], p1: [I.x - .6, 13.5, I.z + 7.4], l0: [I.x + .8, 1.2, I.z - .8], l1: [I.x, 0, I.z - .5], fov: [34, 30], fp: [I.x, I.y, I.z], ap: .005 },
+    // 10. финал сверху: оттиск — титр
+    { t0: 10.9, t1: 15, p0: [-.1, 29.6, -.75], p1: [-.1, 28.4, -.75], l0: [-.1, 0, -.75], l1: [-.1, 0, -.75], fov: [24, 24], top: true, fp: [.6, 0, -.75], ap: .0012 },
   ]);
-  // отдача удара: предметы на подложке подпрыгивают с задержкой по расстоянию
-  const hop = (t, x, z) => { const d = Math.hypot(x - caseC.x, z - caseC.z), tt = t - SLAM - d / 16; return tt > 0 ? .16 * Math.exp(-tt * 6) * Math.abs(Math.sin(tt * 16)) * Math.max(0, 1 - d / 22) : 0; };
+  // отдача удара: предметы на подложке вздрагивают один раз и чуть-чуть второй, с задержкой по расстоянию
+  const hop = (t, x, z) => { const d = Math.hypot(x - I.x, z - I.z), tt = t - SLAM - d / 18, f = Math.max(0, 1 - d / 20); if (tt <= 0) return 0; return f * (.13 * Math.sin(Math.PI * seg(tt, 0, .26)) + .035 * Math.sin(Math.PI * seg(tt, .26, .42))); };
   return {
     S, dur: 15, overlay: bugHTML(),
     update(t) {
-      // игра: диск крутится, крышка закрывается
-      gc.open(1 - glide(seg(t, 1.9, 2.6))); gc.spin(discA(t));
-      // оценка: «плюс» зажигает звёзды, «минус» гасит четвёртую, удар штампа ставит пятую
-      tp.set(glide(seg(t, 3.0, 3.2))); tm.set(glide(seg(t, 4.65, 4.85)) * (1 - glide(seg(t, 5.15, 5.35))));
-      const on = [3.75, 4.0, 4.25, 5.35, SLAM];
+      gc.open(1 - glide(seg(t, 1.4, 2.1))); gc.spin(discA(t));
+      tp.set(glide(seg(t, 2.55, 2.8))); tm.set(glide(seg(t, 4.15, 4.4)) * (1 - glide(seg(t, 4.6, 4.85))));
+      const on = [2.95, 3.25, 3.5, 4.8, SLAM];
       stars.forEach((s, i) => {
         let k = 0;
         if (i < 3) k = glide(seg(t, on[i], on[i] + .3));
-        if (i === 3) k = t < 4.75 ? glide(seg(t, 4.5, 4.75)) : t < 5.35 ? .25 + .2 * Math.sin(t * 40) * (1 - seg(t, 4.8, 5.3)) : .25 + .75 * glide(seg(t, 5.35, 5.65));
+        if (i === 3) k = t < 4.3 ? glide(seg(t, 3.75, 4.05)) : t < 4.8 ? lerp(1, .22, glide(seg(t, 4.3, 4.5))) + .12 * Math.sin((t - 4.3) * 30) * (1 - seg(t, 4.3, 4.75)) : .22 + .78 * glide(seg(t, 4.8, 5.1));
         if (i === 4) k = glide(seg(t, SLAM, SLAM + .25));
-        s.set(k); const t0 = i === 3 && t < 5.35 ? 4.5 : on[i]; s.g.scale.setScalar(1 + .25 * Math.sin(Math.PI * seg(t, t0, t0 + .3)));
+        s.set(k); const t0 = i === 3 && t < 4.8 ? 3.75 : on[i]; s.g.scale.setScalar(1 + .22 * Math.sin(Math.PI * seg(t, t0, t0 + .35)));
         s.g.position.y = Y0 + .2 + hop(t, s.g.position.x, s.g.position.z);
       });
-      PG.position.y = Y0 + hop(t, PG.position.x, PG.position.z); tp.g.position.y = Y0 + hop(t, tp.g.position.x, starZ);
-      // штамп: в краску → вверх → к коробке → удар → переворот
-      const [p, rx, tilt] = pose(t); st.g.position.copy(p); st.g.rotation.set(rx + tilt, 0, 0);
-      st.ink(glide(seg(t, 5.9, 6.3)) * (1 - .7 * seg(t, SLAM, SLAM + .5))); st.charge(glide(seg(t, 6.0, 6.7)));
-      st.body.emissiveIntensity = t > SLAM ? .4 * Math.exp(-(t - SLAM) * 4) : 0;
-      imprint.material.opacity = t < SLAM ? 0 : .95 - .25 * glide(seg(t, SLAM + .3, SLAM + 1.5));
-      const vk = seg(t, SLAM - .04, SLAM + .55); fx.position.set(caseC.x, 1.2, caseC.z + 2.6); fx.material.opacity = Math.sin(vk * Math.PI) * .95;
-      const vs = seg(t, SLAM, SLAM + 1.1); shock.position.set(caseC.x, Y0 + .02, caseC.z); shock.scale.setScalar(lerp(3, 15, E.outCubic(vs))); shock.material.opacity = vs > 0 && vs < 1 ? (1 - vs) * .9 : 0;
-      cam(t, t > SLAM && t < 10.35 ? .18 * Math.exp(-(t - SLAM) * 7) : 0);
+      PG.position.y = Y0 + hop(t, PG.position.x, PG.position.z); tp.g.position.y = Y0 + hop(t, tp.g.position.x, starZ); tm.g.position.y = Y0 + hop(t, tm.g.position.x, starZ); gc.g.position.y = caseC.y + hop(t, caseC.x, caseC.z);
+      const [p, rx, rz] = pose(t); st.g.position.copy(p); st.g.rotation.set(rx, 0, rz);
+      st.ink(glide(seg(t, 5.1, 5.4)) * (1 - .75 * seg(t, SLAM, SLAM + .4))); st.charge(glide(seg(t, 5.2, 5.9)) * (1 - .6 * glide(seg(t, 9.4, 10.4))));
+      st.body.emissiveIntensity = t > SLAM ? .35 * Math.exp(-(t - SLAM) * 4) : 0;
+      // оттиск: появляется в момент касания, свежая краска чуть блестит и подсыхает
+      imprint.material.opacity = t < SLAM ? 0 : .96; imprint.material.emissiveIntensity = t < SLAM ? 0 : .5 * (1 - glide(seg(t, 9.3, 11.5))) + .12;
+      const vk = seg(t, SLAM - .04, SLAM + .5); fx.position.set(I.x, 1.0, I.z + 2.6); fx.material.opacity = Math.sin(vk * Math.PI) * .9;
+      const vs = seg(t, SLAM, SLAM + 1.0); shock.position.set(I.x, Y0 + .02, I.z); shock.scale.setScalar(lerp(4, 15, E.outCubic(vs))); shock.material.opacity = vs > 0 && vs < 1 ? (1 - vs) * .8 : 0;
+      cam(t, t > SLAM && t < 9.6 ? .11 * Math.exp(-(t - SLAM) * 6) : 0);
     },
-    ov(t, q) { fade(q.bug, t, 12.6); },
+    ov(t, q) { fade(q.bug, t, 11.4); },
   };
 }
 
@@ -1757,29 +1834,52 @@ function buildGadget() {
   // крышка: вверх → в сторону за подиум → вниз на пол (координаты относительно коробки)
   const LID = V(8.0 - P.x, -PY + .005, -6.3 - P.z);
   const lidAt = t => { const lu = glide(seg(t, 3.75, 4.3)), lm = glide(seg(t, 4.2, 4.95)), ld = glide(seg(t, 4.6, 5.15)); return [lerp(0, LID.x, lm), lerp(box.h + 2.6 * lu, LID.y, ld), lerp(0, LID.z, lm), lm]; };
+  // начало ролика: варианты движения камеры (?gv=N), выбран лучший — см. OPEN_PICK
+  const HH = V(-8.8, .5, -4.6), PD = V(-8.8, .5, -.4), arc = (c, r, h, a0, a1, lk = c) => (k => { const a = lerp(a0, a1, k); return [[c.x + Math.sin(a) * r, h, c.z + Math.cos(a) * r], lk.toArray()]; });
+  const WIDE = { t0: 1.9, t1: 2.9, p0: [8.5, 6.8, 17.5], p1: [5.6, 5.8, 15.5], l0: [-.5, 1.6, -3.2], l1: [-1.0, 1.4, -3.2], fov: [36, 36], ap: .004 };
+  const OPEN = [
+    // 0. три плана: макро консоли, макро геймпада сверху слева, общий план
+    [{ t0: 0, t1: 1.0, p0: [-6.9, 1.9, -2.4], p1: [-7.6, 1.45, -3.1], l0: [-8.8, .5, -4.6], l1: [-8.9, .5, -4.7], fov: [28, 28], roll: [-4, -1], ap: .016 },
+     { t0: 1.0, t1: 1.9, p0: [-12.4, 3.4, 3.2], p1: [-11.0, 2.4, 1.7], l0: [-8.7, .45, -.6], l1: [-8.8, .45, -.7], fov: [30, 30], ap: .012 }, WIDE],
+    // 1. слайдер: один боковой проезд на высоте плинтов от консоли к геймпаду с переводом фокуса
+    [{ t0: 0, t1: 1.9, p0: [-5.2, 1.55, -6.2], p1: [-5.5, 1.35, 1.2], l0: [-8.9, .45, -4.4], l1: [-8.8, .5, -.1], fov: [30, 30], fp: t => (t < .95 ? HH : PD).toArray(), ap: .014 }, WIDE],
+    // 2. кран: сверху над экраном консоли с доворотом, затем низкий облёт геймпада
+    [{ t0: 0, t1: 1.0, p0: [-8.75, 5.2, -4.5], p1: [-8.7, 3.6, -4.4], l0: [-8.75, 0, -4.51], l1: [-8.7, 0, -4.41], fov: [30, 30], top: true, roll: [-28, -6], ap: .012 },
+     { t0: 1.0, t1: 1.9, fn: arc(PD, 3.6, 1.3, 1.25, .55), fov: [30, 30], ap: .014 }, WIDE],
+    // 3. глубина: длинный объектив вдоль плинтов, фокус с дальней консоли на ближний геймпад, медленный наезд
+    [{ t0: 0, t1: 1.9, p0: [-7.0, 1.25, 5.4], p1: [-7.25, 1.15, 4.3], l0: [-8.9, .5, -4.6], l1: [-8.85, .45, -2.6], fov: [19, 18], fp: t => (t < 1.0 ? HH : PD).toArray(), ap: .02 }, WIDE],
+    // 4. облёт: дуги вокруг консоли и геймпада, общий план — кран сверху вниз
+    [{ t0: 0, t1: 1.0, fn: arc(HH, 3.2, 1.7, .2, 1.05), fov: [28, 28], ap: .016 },
+     { t0: 1.0, t1: 1.9, fn: arc(PD, 3.4, 1.5, -1.0, -.25), fov: [30, 30], ap: .014 },
+     { t0: 1.9, t1: 2.9, p0: [3.2, 14.5, 13.5], p1: [4.2, 5.4, 15.2], l0: [-.8, 0, -3.4], l1: [-.8, 1.6, -3.2], fov: [36, 36], ap: .004 }],
+    // 5. кран сверху над консолью → высокая дуга над геймпадом → кран сверху вниз на общий план
+    [{ t0: 0, t1: 1.0, p0: [-8.75, 5.2, -4.5], p1: [-8.7, 3.6, -4.4], l0: [-8.75, 0, -4.51], l1: [-8.7, 0, -4.41], fov: [30, 30], top: true, roll: [-28, -6], ap: .012, third: [-.8, -.4] },
+     { t0: 1.0, t1: 1.9, fn: arc(PD, 4.6, 3.4, 1.35, .55, V(-8.8, .35, -.5)), fov: [30, 30], ap: .012, third: [-1, .5] },
+     { t0: 1.9, t1: 2.9, p0: [3.2, 14.5, 13.5], p1: [4.2, 5.4, 15.2], l0: [-.8, 0, -3.4], l1: [-.8, 1.6, -3.2], fov: [36, 36], ap: .004, third: [0, .9] }],
+    // 6. кран сверху над консолью → боковой проезд, в кадре оба гаджета, загорается геймпад → кран сверху вниз
+    [{ t0: 0, t1: 1.0, p0: [-8.75, 5.2, -4.5], p1: [-8.7, 3.6, -4.4], l0: [-8.75, 0, -4.51], l1: [-8.7, 0, -4.41], fov: [30, 30], top: true, roll: [-28, -6], ap: .012 },
+     { t0: 1.0, t1: 1.9, p0: [-4.4, 3.4, -3.6], p1: [-4.6, 3.0, 1.4], l0: [-8.8, .4, -3.0], l1: [-8.8, .4, -.6], fov: [32, 32], fp: () => PD.toArray(), ap: .01 },
+     { t0: 1.9, t1: 2.9, p0: [3.2, 14.5, 13.5], p1: [4.2, 5.4, 15.2], l0: [-.8, 0, -3.4], l1: [-.8, 1.6, -3.2], fov: [36, 36], ap: .004 }],
+  ];
+  const OPEN_PICK = 5; // выбран: кран над экраном консоли → высокая дуга над геймпадом → кран сверху вниз на общий план
   const cam = shots(S, [
-    // 1. макро: экран портативной консоли загорается
-    { t0: 0, t1: 1.0, p0: [-6.9, 1.9, -2.4], p1: [-7.6, 1.45, -3.1], l0: [-8.8, .5, -4.6], l1: [-8.9, .5, -4.7], fov: [28, 28], roll: [-4, -1], ap: .016 },
-    // 2. макро слева сверху: у геймпада зажигается световая полоса
-    { t0: 1.0, t1: 1.9, p0: [-12.4, 3.4, 3.2], p1: [-11.0, 2.4, 1.7], l0: [-8.7, .45, -.6], l1: [-8.8, .45, -.7], fov: [30, 30], ap: .012 },
-    // 3. общий план студии: коробка на подиуме доворачивается к камере, наушники отзываются
-    { t0: 1.9, t1: 2.9, p0: [8.5, 6.8, 17.5], p1: [5.6, 5.8, 15.5], l0: [-.5, 1.6, -3.2], l1: [-1.0, 1.4, -3.2], fov: [36, 36], ap: .004 },
+    ...OPEN[QN('gv', OPEN_PICK)],
     // 4. макро: световой нож проходит по ленте
     { t0: 2.9, t1: 3.7, p0: [4.6, 4.8, .4], p1: [3.9, 4.2, -.3], l0: [1.9, 2.8, -3.0], l1: [1.9, 2.8, -3.2], fov: [30, 30], roll: [8, 3], ap: .012 },
     // 5. сверху справа: крышка поднимается, уходит за подиум и ложится на пол
-    { t0: 3.7, t1: 5.0, fn: (k, t) => { box.lid.getWorldPosition(lw); return [[lerp(4.0, 6.6, k), lerp(7.4, 6.0, k), lerp(9.0, 7.4, k)], [lerp(lw.x, P.x, .3), lerp(lw.y + .3, 2.4, .3), lerp(lw.z, P.z, .3)]]; }, fov: [34, 34], ap: .008 },
+    { t0: 3.7, t1: 5.0, fn: (k, t) => { box.lid.getWorldPosition(lw); return [[lerp(4.0, 6.6, k), lerp(7.4, 6.0, k), lerp(9.0, 7.4, k)], [lerp(lw.x, P.x, .3), lerp(lw.y + .3, 2.4, .3), lerp(lw.z, P.z, .3)]]; }, fov: [34, 34], ap: .008, mb: .5, third: [-.8, -.6] },
     // 6. сверху на три четверти: шлем поднимается из коробки и разворачивается
-    { t0: 5.0, t1: 6.1, p0: [-7.0, 9.2, 4.6], p1: [-6.0, 8.6, 3.6], l0: [0, 2.6, -3.2], l1: [0, 4.6, -3.2], fov: [32, 32], fp: () => VG.position.toArray(), ap: .008 },
+    { t0: 5.0, t1: 6.1, p0: [-7.0, 9.2, 4.6], p1: [-6.0, 8.6, 3.6], l0: [0, 2.6, -3.2], l1: [0, 4.6, -3.2], fov: [32, 32], fp: () => VG.position.toArray(), ap: .008, third: [.8, -.5] },
     // 7. облёт справа: шлем раскладывается, выходят первые сноски
-    { t0: 6.1, t1: 7.8, fn: k => { const a = lerp(.6, .1, k); return [[Math.sin(a) * 8.2, upY + .5, P.z + Math.cos(a) * 8.2], [0, upY, P.z]]; }, fov: [33, 32], fp: [0, upY, P.z], ap: .008 },
+    { t0: 6.1, t1: 7.8, fn: k => { const a = lerp(.6, .1, k); return [[Math.sin(a) * 8.2, upY + .5, P.z + Math.cos(a) * 8.2], [0, upY, P.z]]; }, fov: [33, 32], fp: [0, upY, P.z], ap: .008, third: [-.7, -.35] },
     // 8. снизу слева, наезд: все сноски на месте
     { t0: 7.8, t1: 9.45, p0: [-7.4, 2.5, 5.2], p1: [-6.1, 2.9, 3.9], l0: [0, upY - .1, P.z], l1: [.3, upY, P.z], fov: [33, 31], fp: [0, upY, P.z], ap: .007 },
     // 9. низко сбоку: детали собираются
-    { t0: 9.45, t1: 10.4, p0: [-9.6, 1.6, -.6], p1: [-9.0, 2.2, -1.4], l0: [0, 4.2, P.z], l1: [0, 3.8, P.z], fov: [34, 34], ap: .008 },
+    { t0: 9.45, t1: 10.4, p0: [-9.6, 1.6, -.6], p1: [-9.0, 2.2, -1.4], l0: [0, 4.2, P.z], l1: [0, 3.8, P.z], fov: [34, 34], ap: .008, third: [.6, -.6] },
     // 10. низкий проезд: шлем ложится в коробку, кольцо подиума и гаджеты отзываются
-    { t0: 10.4, t1: 11.4, p0: [-3.4, .7, 9.4], p1: [1.6, .85, 9.1], l0: [-.8, 1.4, P.z], l1: [.4, 1.1, P.z], fov: [34, 34], ap: .006 },
+    { t0: 10.4, t1: 11.4, p0: [-3.4, .7, 9.4], p1: [1.6, .85, 9.1], l0: [-.8, 1.4, P.z], l1: [.4, 1.1, P.z], fov: [34, 34], ap: .006, third: [-.7, 0] },
     // 11. финал сверху
-    { t0: 11.4, t1: 15, p0: [0, 30.5, -.6], p1: [0, 29, -.6], l0: [0, 0, -.6], l1: [0, 0, -.6], fov: [24, 24], top: true, ap: .0015 },
+    { t0: 11.4, t1: 15, p0: [0, 30.5, -.2], p1: [0, 29, -.2], l0: [0, 0, -.2], l1: [0, 0, -.2], fov: [24, 24], top: true, ap: .0015 },
   ]);
   const lk = 11.0, echo = (t, x, z) => { const d = Math.hypot(x - P.x, z - P.z); return Math.sin(Math.PI * seg(t, lk + d * .05, lk + .5 + d * .05)); };
   return {
@@ -1795,10 +1895,10 @@ function buildGadget() {
       const cut = seg(t, 3.0, 3.6); setLit(box.tapeM, C.cyan, .2 + 3 * Math.sin(Math.PI * cut)); box.tape.scale.z = Math.max(.001, 1 - glide(seg(t, 3.4, 3.7)));
       const [lx, ly, lz, lm] = lidAt(t); box.lid.position.set(lx, ly, lz); box.lid.rotation.set(0, -.25 * lm, -.2 * Math.sin(Math.PI * lm));
       // 4. шлем поднимается, поворачивается к камере, раскладывается и собирается
-      const up = glide(seg(t, 5.05, 5.85)) * (1 - glide(seg(t, 10.25, 11.0))), tilt = glide(seg(t, 5.3, 6.05)) * (1 - glide(seg(t, 9.8, 10.4)));
+      const up = glide(seg(t, 5.05, 5.9)) * (1 - glide(seg(t, 10.2, 11.0))), tilt = glide(seg(t, 5.2, 6.2)) * (1 - glide(seg(t, 9.7, 10.45)));
       VG.position.set(P.x, lerp(restY, upY, up) + .06 * Math.sin(t * 1.6) * up, P.z);
       VG.rotation.set(-Math.PI / 2 + tilt * 1.25, Math.sin((t - 5) * .7) * .25 * tilt, 0);
-      const ex = glide(seg(t, 6.15, 6.65)) * (1 - glide(seg(t, 9.45, 9.95)));
+      const ex = glide(seg(t, 6.1, 6.75)) * (1 - glide(seg(t, 9.4, 10.0)));
       vr.parts.forEach(p => p.m.position.copy(p.base).addScaledVector(p.v, ex * .5));
       vr.parts[8].m.scale.set(1, 1, lerp(.22, 1, glide(seg(t, 5.3, 6.0)) * (1 - glide(seg(t, 10.2, 10.9)))));
       setLit(vr.led, C.cyan, .1 + 1.6 * seg(t, 5.85, 6.1));
@@ -1892,7 +1992,7 @@ function buildBumper() {
     // 2. спереди слева, над торцом: блик проходит по анодированной плоскости и нижней дуге знака
     { t0: 1.5, t1: 2.6, p0: [-8.6, 3.4, 7.4], p1: [-7.2, 3.0, 6.5], l0: [-2.8, 1.0, 1.9], l1: [-2.0, 1.0, 1.5], fov: [32, 32], roll: [-7, -3], fp: [-3.2, 1.2, 2.2], ap: .012 },
     // 3. отъезд с креном: знак целиком
-    { t0: 2.6, t1: 5, p0: [3.0, 4.0, 6.6], p1: [0, 19.2, 11.2], l0: [.3, 1.0, .4], l1: [0, 1.0, .25], fov: [34, 30], roll: [-14, 0], e: k => 1 - Math.pow(1 - k, 3), ap: .004 },
+    { t0: 2.6, t1: 5, p0: [3.0, 4.0, 6.6], p1: [0, 19.2, 11.2], l0: [.3, 1.0, .4], l1: [0, 1.0, .25], fov: [34, 30], roll: [-14, 0], e: k => 1 - Math.pow(1 - k, 3), ap: .004, third: k => [.55 * k, .3 * k] },
   ]);
   return {
     S, dur: 5, overlay: bugHTML() + capHTML('РЕКЛАМА'),
@@ -1922,14 +2022,14 @@ const PIECES = [
     meta: [['Хронометраж', '15 с · 450 кадров'], ['Камера', '9 планов без повторов: макро геймпада, проводка за импульсом со стороны стены, фронт консоли, макро слота сверху, картридж из-за библиотеки, картридж входит в слот, через консоль на телевизор, низкий общий план, финал сверху'], ['Звук', 'Щелчок кнопки, гул сигнала по кабелю, писк питания, створки слота, щелчок картриджа, включение телевизора']],
     beats: [[0, 'Геймпад: кнопка «домой»'], [1.0, 'Нажатия △ ○ ✕ □'], [1.5, 'Импульс по кабелю'], [2.75, 'Консоль включается'], [3.8, 'Створки слота раскрываются'], [4.5, 'Картридж с Е поднимается'], [7.25, 'Картридж входит в слот'], [8.2, 'Телевизор включается'], [8.5, 'Лента заливает стену'], [9.4, 'Знак Е в стекле консоли'], [11.85, 'Финал: «ИГРОВОЙ КАНАЛ»']] },
   { id: 'verdict', name: '«Вердикт»', build: buildVerdict, accent: '#7A35FF', dur: 15,
-    pal: [['#7A35FF', 'Краска, лицо штампа'], ['#1D1A26', 'Кожаная подложка'], ['#2A3140', 'Металл штампа'], ['#F2EEFF', 'Название на штампе']],
-    text: ['Стол критика: чёрный камень, кожаная подложка с прострочкой, у стены полка с коллекцией игр, слева архитекторская лампа даёт тёплое пятно света. Радужный диск крутится в открытой коробке и останавливается, крышка закрывается обложкой вверх. Тумблер «плюс» зажигает звёзды оценки одну за другой, «минус» гасит четвёртую, после его выключения звезда возвращается.', 'Металлический штамп с точёной ручкой опускается в фиолетовую подушку, поднимается и летит над столом к коробке. Удар: на обложке остаётся оттиск с галочкой, загорается пятая звезда, предметы на подложке подпрыгивают. Штамп переворачивается, на его лице крупно «ВЕРДИКТ» и «ОБЗОРЫ ИГР». Финал сверху.'],
-    meta: [['Хронометраж', '15 с · 450 кадров'], ['Камера', '10 планов без повторов: макро диска, крышка низко спереди, «плюс» сверху, проезд вдоль звёзд, макро «минуса» с переводом фокуса, штамп над подушкой, погоня за штампом, удар, переворот, финал сверху'], ['Звук', 'Вращение диска, щелчок коробки, тики звёзд, глухой «минус», шлепок в краску, свист перелёта, тяжёлый удар']],
-    beats: [[0, 'Диск крутится'], [1.9, 'Крышка закрывается'], [3.0, '«Плюс»: звёзды загораются'], [4.65, '«Минус» гасит звезду'], [5.35, 'Звезда возвращается'], [5.8, 'Штамп в краске'], [6.9, 'Перелёт к коробке'], [9.82, 'Удар: оттиск и пятая звезда'], [10.45, 'Штамп переворачивается'], [12.3, 'Финал: «ВЕРДИКТ»']] },
+    pal: [['#5A24D8', 'Краска оттиска'], ['#E4E0D8', 'Бланк рецензии'], ['#1D1A26', 'Кожаная подложка'], ['#2A3140', 'Металл штампа']],
+    text: ['Стол критика: чёрный камень, кожаная подложка, у стены полка с коллекцией игр, слева архитекторская лампа светит на бланк рецензии с колонками «плюсы» и «минусы». Радужный диск крутится в открытой коробке и останавливается, крышка закрывается. Тумблер «плюс» зажигает звёзды оценки одну за другой, «минус» гасит четвёртую и отпускает — звезда возвращается.', 'Металлический штамп набирает краску и летит к бланку; снизу видна его зеркальная резина, как у настоящей печати. Удар: загорается пятая звезда, по подложке идёт волна, предметы вздрагивают. Штамп уходит, и на бланке остаётся фиолетовый оттиск «ВЕРДИКТ · ОБЗОРЫ ИГР» с неровной фактурой краски — он и становится финальным титром.'],
+    meta: [['Хронометраж', '15 с · 450 кадров'], ['Камера', '10 планов без повторов: макро диска, крышка сзади, «плюс» сверху, проезд вдоль звёзд, макро «минуса» с переводом фокуса, штамп над подушкой, погоня за штампом, удар спереди с подъёмом камеры, кран над оттиском, финал сверху'], ['Звук', 'Вращение диска, щелчок коробки, тики звёзд, глухой «минус», шлепок в краску, свист перелёта, тяжёлый удар, отрыв штампа от бумаги']],
+    beats: [[0, 'Диск крутится'], [1.4, 'Крышка закрывается'], [2.55, '«Плюс»: звёзды загораются'], [4.15, '«Минус» гасит звезду'], [4.8, 'Звезда возвращается'], [5.0, 'Штамп в краске'], [6.1, 'Перелёт к бланку'], [8.75, 'Удар: пятая звезда'], [9.15, 'Штамп уходит, виден оттиск'], [10.9, 'Финал: оттиск «ВЕРДИКТ»']] },
   { id: 'gadget', name: '«Гаджетотека»', build: buildGadget, accent: '#00D9FF', dur: 15,
     pal: [['#00D9FF', 'Свет, сноски'], ['#232B3B', 'Циклорама'], ['#A7B1BF', 'Алюминий'], ['#07090D', 'Стекло шлема']],
     text: ['Предметная студия: бесшовный фон-циклорама со светлым горизонтом, верхний софтбокс, поворотный подиум со световым кольцом и экспонаты на плинтах. Портативная консоль, геймпад и наушники включаются один за другим. Подиум доворачивает к камере закрытую коробку с рисунком VR-шлема. Световой нож проходит по ленте-пломбе, крышка поднимается, уходит за подиум и ложится на пол.', 'Из ложемента поднимается VR-шлем — изогнутое тёмное стекло, алюминиевая рамка, вязаный ремень. Он раскладывается на детали, и к ним по очереди выходят сноски-карточки: от детали прочерчивается выноска, раскрывается карточка с номером, название печатается по буквам, ниже короткое пояснение — «Стекло дисплея», «Колёсико», «Линзы», «Светозащита», «Вязаный ремень». Сноски держатся около двух с половиной секунд на двух планах, затем сворачиваются, шлем собирается и ложится в коробку, загорается кольцо подиума. Финал сверху: подиум, экспонаты и крупный титр «ГАДЖЕТОТЕКА».'],
-    meta: [['Хронометраж', '15 с · 450 кадров'], ['Камера', '11 планов без повторов: макро консоли, макро геймпада, общий план студии, макро ленты, крышка сверху, подъём шлема, облёт справа, наезд снизу слева, сборка сбоку, низкий проезд у подиума, финал сверху'], ['Звук', 'Писки включения, мотор подиума, разрез ленты, шорох крышки, щелчки сносок, механика раскладки и сборки, щелчок ложемента']],
+    meta: [['Хронометраж', '15 с · 450 кадров'], ['Камера', '11 планов без повторов: кран над экраном консоли с доворотом, высокая дуга над геймпадом, кран сверху вниз на общий план студии, макро ленты, крышка сверху, подъём шлема, облёт справа, наезд снизу слева, сборка сбоку, низкий проезд у подиума, финал сверху'], ['Звук', 'Писки включения, мотор подиума, разрез ленты, шорох крышки, щелчки сносок, механика раскладки и сборки, щелчок ложемента']],
     beats: [[0, 'Консоль включается'], [1.2, 'Геймпад'], [2.0, 'Наушники'], [3.0, 'Свет режет ленту'], [3.75, 'Крышка снимается'], [5.05, 'VR-шлем поднимается'], [6.15, 'Раскладка на детали'], [6.5, 'Сноски выходят по очереди'], [8.85, 'Сноски сворачиваются'], [9.45, 'Сборка'], [10.25, 'Шлем ложится в коробку'], [11.0, 'Кольцо подиума, волна'], [11.95, 'Финал: «ГАДЖЕТОТЕКА»']] },
   { id: 'bumper', name: 'Отбивка', build: buildBumper, accent: '#00D9FF', dur: 5,
     pal: [['#171C26', 'Анодированная пластина'], ['#D9E1EC', 'Алмазная фаска'], ['#00D9FF', 'Стеклянная вставка'], ['#E6EEF8', 'Плашка «РЕКЛАМА»']],
@@ -2013,7 +2113,10 @@ function frame(now, once) {
   }
   if (playing || dirty || once) {
     const S = cur.inst.S;
-    cur.inst.update(time); cur.inst.ov(time, ovEls);
+    // для размытия от движения: камера полкадра назад
+    let mbK = 0, mbShot = -1;
+    if (time > .02) { cur.inst.update(time - 1 / 60); S.cam.updateMatrixWorld(); mbPrev.multiplyMatrices(S.cam.projectionMatrix, S.cam.matrixWorldInverse); mbShot = S.shotId; mbK = 1; }
+    cur.inst.update(time); cur.inst.ov(time, ovEls); mbSet(S, mbPrev, mbShot, mbK);
     bokeh.uniforms.focus.value = S.focus; bokeh.uniforms.aperture.value = S.ap;
     bokeh.uniforms.maxblur.value = S.maxblur ?? .005; grade.uniforms.uTime.value = time; bloom.strength = S.bloom ?? .42; bloom.threshold = S.bloomT ?? .96; renderer.toneMappingExposure = S.exposure ?? .9;
     composer.render(); dirty = false;
