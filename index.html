@@ -573,7 +573,7 @@ function shots(S, list) {
     }
     const th = typeof s.third === 'function' ? s.third(k, t) : s.third;
     if (th) cam.setViewOffset(1600, 900, -th[0] * 1600 / 6, -th[1] * 900 / 6, 1600, 900); else if (cam.view && cam.view.enabled) cam.clearViewOffset();
-    const fp = s.fp ? (typeof s.fp === 'function' ? s.fp(t) : s.fp) : l; S.focus = cam.position.distanceTo(V(...fp)); S.ap = (s.ap ?? .004) * .45;
+    const fp = s.fp ? (typeof s.fp === 'function' ? s.fp(t) : s.fp) : l; S.focus = cam.position.distanceTo(V(...fp)); S.ap = (s.apAt ? s.apAt(t) : s.ap ?? .004) * .45;
     // низкое боковое солнце — длинные мягкие тени
     S.key.position.set(l[0] - 13, 10, l[2] - 5); S.key.target.position.set(l[0], 0, l[2]);
     S.rimA.position.set(l[0] - 8, 4, l[2] + 6); S.rimA.intensity = 60 * (S.rimK ?? 1);
@@ -593,6 +593,26 @@ const craneTop = (c, d0, d1, d2, e0, a0, kEnd) => k => {
   const w = glide(seg(El * 180 / Math.PI, 62, 89.9)), up = V(0, 1, 0).lerp(V(0, 0, -1), w).normalize();
   return [p, c, up.toArray()];
 };
+// плавная траектория по ключам во времени: кривая Эрмита, скорость непрерывна, на концах — покой
+function spline(keys) {
+  const T = keys.map(k => k[0]), P = keys.map(k => k[1]), n = keys.length;
+  const M = P.map((p, i) => i === 0 || i === n - 1 ? p.map(() => 0) : p.map((_, d) => (P[i + 1][d] - P[i - 1][d]) / (T[i + 1] - T[i - 1])));
+  return t => {
+    if (t <= T[0]) return P[0].slice(); if (t >= T[n - 1]) return P[n - 1].slice();
+    let i = 0; while (t > T[i + 1]) i++;
+    const h = T[i + 1] - T[i], s = (t - T[i]) / h, s2 = s * s, s3 = s2 * s, a = 2 * s3 - 3 * s2 + 1, b = s3 - 2 * s2 + s, c = -2 * s3 + 3 * s2, d = s3 - s2;
+    return P[i].map((_, j) => a * P[i][j] + b * h * M[i][j] + c * P[i + 1][j] + d * h * M[i + 1][j]);
+  };
+}
+// непрерывный проход камеры одним планом: ключи [t, позиция, цель, fov, диафрагма]; верх кадра плавно переходит к −z, когда камера смотрит сверху
+function oneTake(keys) {
+  const P = spline(keys.map(k => [k[0], k[1]])), L = spline(keys.map(k => [k[0], k[2]])), F = spline(keys.map(k => [k[0], [k[3], k[4]]]));
+  return {
+    t0: 0, t1: 1e9, e: k => k, mb: .8,
+    fn: (k, t) => { const p = P(t), l = L(t), dir = V(l[0] - p[0], l[1] - p[1], l[2] - p[2]).normalize(), el = Math.asin(clamp(-dir.y, -1, 1)) * 180 / Math.PI, w = glide(seg(el, 60, 89.8)); return [p, l, V(0, 1, 0).lerp(V(0, 0, -1), w).normalize().toArray()]; },
+    fov: (k, t) => F(t)[0], fp: t => L(t), get ap() { return undefined; }, apAt: t => F(t)[1],
+  };
+}
 
 const ripple = (x, z, t, t0, cx, cz, amp = .3, sp = 9, w = 1.8) => {
   if (t < t0) return 0; const dt = t - t0, d = Math.hypot(x - cx, z - cz);
@@ -1817,7 +1837,8 @@ function buildIdent() {
 function buildVerdict() {
   const S = makeStageP({ exposure: 1.22 }); S.neonCol = C.violet; S.rimK = .05;
   const ENV = makeEnvCritic(S), Y0 = .06;
-  const cardC = V(-3.9, Y0, .4), boardC = V(5.6, Y0, -.2), padC = V(17, 0, -1.2), caseC = V(-12.6, Y0, -3.2), monC = V(-2.5, 0, -7.6);
+  // всё на одном столе компактно: камера проходит сцену одним планом — монитор с коробкой у стены, перед ними бланк, справа табло, за табло — штемпельная подушка
+  const cardC = V(-3.9, Y0, .4), boardC = V(5.6, Y0, -.2), padC = V(8.4, 0, -7.6), caseC = V(.6, 0, -7.4), monC = V(-3.6, 0, -7.6);
   ENV.spot.target.position.set(cardC.x + 1, 0, cardC.z); ENV.spot.intensity = 230;
   // бланк и оттиск
   const card = makeReviewCard2(10.4, 6.8); card.g.position.copy(cardC); card.g.name = 'Бланк рецензии'; S.scene.add(card.g);
@@ -1831,22 +1852,22 @@ function buildVerdict() {
   const port = pad.g.localToWorld(pad.parts.port.clone()), entry = V(boardC.x - B.W / 2 - .02, .22, boardC.z + 1.4);
   const cab = makeCable(S, [port, V(port.x - .15, .14, port.z - .45), V(port.x - .55, .1, port.z - 1.1), V(entry.x - .5, .1, entry.z + .1), V(entry.x - .18, .16, entry.z), entry]);
   const mon = makeMonitor(); mon.g.position.copy(monC); mon.g.rotation.y = .1; mon.g.name = 'Монитор'; S.scene.add(mon.g);
-  const gc = makeGameCase(); gc.g.position.copy(caseC); gc.g.rotation.y = .3; gc.g.name = 'Коробка игры'; gc.hinge.name = 'Крышка коробки'; S.scene.add(gc.g);
+  const gc = makeGameCase(); gc.g.position.copy(caseC); gc.g.rotation.y = -.2; gc.g.name = 'Коробка игры'; gc.hinge.name = 'Крышка коробки'; S.scene.add(gc.g);
   const ink = makeInkPad(SW + .9, SD + .9); ink.g.position.copy(padC); ink.g.name = 'Штемпельная подушка'; S.scene.add(ink.g);
   const st = makeStamp('ВЕРДИКТ', 'ОБЗОРЫ ИГР', { W: SW, D: SD, th: TH, sh: SH, tz: TZ, sz: SZ, mirror: true }); st.g.name = 'Штамп'; S.scene.add(st.g);
   const fx = streak(S, C.violet), shock = shockRing(S, C.violet);
   // оценка: нажатия (кнопка → строка), импульс по кабелю 0,28 с, деления наливаются по 0,05 с
-  const PRESS = [[2.75, 2, 0, 9], [3.75, 1, 1, 9], [4.45, 0, 2, 8], [6.05, 3, 3, 9]], DOWN = 5.3, SLAM = 9.5, inkY = .47, hitY = I.y + .004, up = 4.4;
+  const PRESS = [[3.4, 2, 0, 9], [4.25, 1, 1, 9], [4.8, 0, 2, 8], [6.3, 3, 3, 9]], DOWN = 5.45, SLAM = 9.75, inkY = .47, hitY = I.y + .004, up = 4.4;
   const rowN = (t, [tp, , , n]) => clamp((t - tp - .3) / .05, 0, n);
   const bump = (t, a, b) => (1 - Math.cos(2 * Math.PI * seg(t, a, b))) / 2;
   const pose = t => {
-    const p = V(padC.x, inkY - .08 * bump(t, 7.3, 7.6), padC.z); let rx = 0, rz = 0;
-    if (t > 7.6) p.y = lerp(inkY, up, glide(seg(t, 7.6, 8.2)));
-    if (t > 8.15) { const k = glide(seg(t, 8.15, 9.05)); p.x = lerp(padC.x, I.x, k); p.z = lerp(padC.z, I.z, k); p.y += Math.sin(k * Math.PI) * 1.6; rz = -Math.sin(k * Math.PI) * .14; rx = Math.sin(k * Math.PI) * .07; }
-    if (t > 9.05) p.y = up + .35 * bump(t, 9.05, 9.3);
-    if (t > 9.3) p.y = lerp(up, hitY, E.inCubic(seg(t, 9.3, SLAM)));
+    const p = V(padC.x, inkY - .08 * bump(t, 7.6, 7.9), padC.z); let rx = 0, rz = 0;
+    if (t > 7.9) p.y = lerp(inkY, up, glide(seg(t, 7.9, 8.5)));
+    if (t > 8.45) { const k = glide(seg(t, 8.45, 9.3)); p.x = lerp(padC.x, I.x, k); p.z = lerp(padC.z, I.z, k); p.y += Math.sin(k * Math.PI) * 1.6; rz = -Math.sin(k * Math.PI) * .14; rx = Math.sin(k * Math.PI) * .07; }
+    if (t > 9.3) p.y = up + .35 * bump(t, 9.3, 9.55);
+    if (t > 9.55) p.y = lerp(up, hitY, E.inCubic(seg(t, 9.55, SLAM)));
     if (t > SLAM) p.y = hitY - .03 * Math.exp(-(t - SLAM) * 14) * Math.cos((t - SLAM) * 40);
-    if (t > 9.85) { const l = glide(seg(t, 9.85, 10.6)), m = glide(seg(t, 10.45, 11.9)); p.set(lerp(I.x, padC.x, m), lerp(hitY, 5, l) + Math.sin(m * Math.PI) * .8 - lerp(0, 5 - inkY, glide(seg(t, 11.5, 12.1))), lerp(I.z, padC.z, m)); rx = -.12 * Math.sin(Math.PI * seg(t, 9.85, 10.8)); rz = .08 * Math.sin(m * Math.PI); }
+    if (t > 10.1) { const l = glide(seg(t, 10.1, 10.8)), m = glide(seg(t, 10.6, 12.0)); p.set(lerp(I.x, padC.x, m), lerp(hitY, 5, l) + Math.sin(m * Math.PI) * .8 - lerp(0, 5 - inkY, glide(seg(t, 11.6, 12.2))), lerp(I.z, padC.z, m)); rx = -.12 * Math.sin(Math.PI * seg(t, 10.1, 11.0)); rz = .08 * Math.sin(m * Math.PI); }
     return [p, rx, rz];
   };
   const rowW = i => B.g.localToWorld(V(-.72 + 4 * .3, B.y, B.rows[i].z)), segW = (i, j) => B.g.localToWorld(V(-.72 + j * .3, B.y, B.rows[i].z));
@@ -1855,35 +1876,29 @@ function buildVerdict() {
   const scrC = mon.g.localToWorld(V(0, 4.6, -.11)), hp = V();
   pad.parts.dpad[2].mat.emissive.set(C.violet); // «вниз» — снять балл: тот же фиолетовый, что у гаснущего деления и «минуса»
   const pulse = t => { for (const [tp] of PRESS.concat([[DOWN]])) if (t >= tp && t < tp + .3) return seg(t, tp, tp + .28); return -1; };
-  const cam = shots(S, [
-    // 1. монитор: дуга с наездом — прогресс 100%, «Игра пройдена», всплывает достижение
-    { t0: 0, t1: 1.4, fn: orb(scrC.toArray(), [14.5, 11.2], [-1.6, -.9], [-30, -12], [.4, -.3, 0]), fov: [30, 30], fp: scrC.toArray(), ap: .008, third: [-.5, .4] },
-    // 2. низко сзади: крышка коробки закрывается над диском; в конце — хлёсткая панорама вправо
-    { t0: 1.4, t1: 2.4, p0: [caseC.x + 5.4, 1.5, caseC.z + 3.0], p1: [caseC.x + 4.6, 1.9, caseC.z + 2.3], l0: [caseC.x - .3, .8, caseC.z - .2], l1: [caseC.x, .45, caseC.z], fov: [32, 32], ap: .01, third: [-.8, .5], whip: [0, 0, .16, 75] },
-    // 3. геймпад сверху → камера ведёт импульс по кабелю → первая строка табло наливается
-    { t0: 2.4, t1: 3.7, fn: (k, t) => { const u = glide(seg(t, 2.85, 3.25)); cab.curve.getPointAt(clamp(seg(t, 2.75, 3.03)), hp); const a = xW.clone(), b = rowW(0); const look = a.clone().lerp(hp, glide(seg(t, 2.75, 2.95))).lerp(b, glide(seg(t, 3.0, 3.35))); const pos = V(lerp(a.x + 1.8, b.x - 1.6, u), lerp(3.4, 2.6, u), lerp(a.z + 2.2, b.z + 3.6, u)); return [pos.toArray(), look.toArray()]; }, fov: [32, 32], ap: .012, whip: [.18, 75, 0, 0], mb: .6, third: [-.6, .3] },
-    // 4. низкий проезд вдоль табло: наливаются «графика» и «сюжет»
-    { t0: 3.7, t1: 5.25, p0: [boardC.x - 5.0, 4.6, boardC.z + 3.6], p1: [boardC.x + .8, 5.2, boardC.z + 3.9], l0: [boardC.x - 1.8, .35, boardC.z - 1.0], l1: [boardC.x + 1.2, .35, boardC.z - 1.0], fov: [30, 30], ap: .008, third: [0, .4] },
-    // 5. через геймпад: крестовина «вниз» (передний план) → у сюжета гаснет деление, загорается «минус» (фокус переводится)
-    { t0: 5.25, t1: 6.3, fn: k => { const tg = segW(2, 7).lerp(minusW, .45 * k), d = tg.clone().sub(dpadW).setY(0).normalize(), rt = V(-d.z, 0, d.x); return [dpadW.clone().addScaledVector(d, -lerp(2.9, 2.5, k)).addScaledVector(rt, .45).add(V(0, lerp(1.0, .85, k), 0)).toArray(), tg.toArray()]; }, fov: [17, 16], fp: t => (t < 5.42 ? dpadW : t < 5.95 ? segW(2, 7) : minusW).toArray(), ap: .03, third: [.3, -.3] },
-    // 6. итог: орбита вокруг счётчика, ролики крутят 8,5
-    { t0: 6.3, t1: 7.3, fn: orb(totW.toArray(), [3.6, 2.9], [2.5, 1.8], [48, 8], [0, .1, -.1]), fov: [30, 30], fp: totW.toArray(), ap: .012, third: [-.7, .4] },
-    // 7. подушка: камера-лифт поднимается вместе со штампом
-    { t0: 7.3, t1: 8.25, fn: (k, t) => { const p = pose(t)[0]; return [[padC.x + 9.4, lerp(1.6, 6.4, glide(k)), padC.z + 9.0], [p.x - .6, p.y - .6, p.z]]; }, fov: [32, 32], fp: t => pose(t)[0].toArray(), ap: .008, mb: .4, third: [.6, .2] },
-    // 8. погоня с креном: камера идёт сбоку, заваливается в поворот вместе со штампом
-    { t0: 8.25, t1: 9.25, fn: (k, t) => { const p = pose(t)[0], o = V(lerp(6.4, 2.6, k), lerp(3.0, 4.6, k), lerp(8.4, 9.6, k)); return [p.clone().add(o).toArray(), p.clone().add(V(-1.8, -.9, -.2)).toArray()]; }, fov: [36, 34], fp: t => pose(t)[0].toArray(), ap: .006, mb: .35, third: [.5, -.3], roll: (k, t) => 9 * Math.sin(Math.PI * seg(t, 8.25, 9.15)) },
-    // 9. удар: камера у края бланка, штамп летит на объектив; в момент удара — резкий наезд
-    { t0: 9.25, t1: 9.95, p0: [I.x - 5.8, .9, I.z + 5.6], p1: [I.x - 5.3, .8, I.z + 5.2], l0: [I.x - .2, 2.2, I.z - .4], l1: [I.x - .2, .5, I.z - .4], fov: (k, t) => t < SLAM ? 38 : lerp(38, 29, E.outCubic(seg(t, SLAM, SLAM + .12))), fp: [I.x, 1, I.z], ap: .008, third: [.5, .3] },
-    // 10. кран со спиралью: штамп уходит, камера поднимается и разворачивается в финальный вид сверху
-    { t0: 9.95, t1: 15, fn: craneTop([0, 0, .55], 11.5, 27.0, 26.3, 22, -32, .33), fov: [24, 24], fp: [I.x, 0, I.z], ap: .0012 },
-  ]);
+  // камера: один непрерывный план без склеек — плавная кривая по ключам, скорость без скачков
+  const cam = shots(S, [oneTake([
+    [0, [-1.8, 4.7, 2.8], [-3.6, 4.5, -7.7], 30, .008],     // экран: прогресс, «Игра пройдена», достижение
+    [1.3, [-.9, 4.3, 1.9], [-2.8, 4.0, -7.6], 30, .008],     // экран целиком: всплыло достижение
+    [2.35, [1.1, 3.0, -1.2], [.6, .45, -7.3], 30, .01],      // наклон вниз к коробке под монитором: крышка закрывается
+    [3.4, [.8, 3.2, 8.6], [4.8, .3, .8], 30, .01],           // отъезд над табло: за геймпадом видно табло — ✕ наливает геймплей
+    [4.9, [1.0, 3.0, 8.6], [5.2, .3, .4], 29, .01],          // ○ графика, △ сюжет
+    [6.2, [2.4, 2.8, 8.0], [6.4, .3, -.2], 28, .012],        // крестовина «вниз» (в кадре слева): «минус» у сюжета, □ звук
+    [7.3, [8.4, 3.2, 6.6], [6.8, .3, 1.8], 30, .01],         // итог на счётчике
+    [8.45, [8.6, 4.0, 6.0], [8.3, 3.0, -6.6], 32, .008],     // штамп поднимается с подушки за табло
+    [9.3, [2.6, 5.8, 11.4], [-2.8, 3.4, 1.4], 36, .006],     // камера ведёт штамп над табло к бланку
+    [10.1, [-1.8, 5.4, 12.6], [-3.6, .6, 1.9], 36, .005],    // удар, оттиск
+    [11.0, [-1.2, 14.5, 9.6], [-1.4, 0, 1.4], 28, .003],     // кран вверх
+    [11.8, [0, 26.4, .96], [0, 0, .9], 24, .0012],           // финал сверху
+    [15, [0, 25.6, .96], [0, 0, .9], 24, .0012],
+  ])]);
   const hop = (t, x, z) => { const d = Math.hypot(x - I.x, z - I.z), tt = t - SLAM - d / 18, f = Math.max(0, 1 - d / 22); if (tt <= 0) return 0; return f * (.13 * Math.sin(Math.PI * seg(tt, 0, .26)) + .035 * Math.sin(Math.PI * seg(tt, .26, .42))); };
   return {
     S, dur: 15, overlay: bugHTML(),
     update(t) {
       // 1. монитор и коробка
-      mon.draw(lerp(.93, 1, glide(seg(t, .15, .8))), seg(t, .8, 1.25), seg(t, 1.0, 1.35), .35 * glide(seg(t, 8, 9)));
-      gc.open(1 - glide(seg(t, 1.6, 2.25))); gc.spin(0);
+      mon.draw(lerp(.93, 1, glide(seg(t, .15, .8))), seg(t, .8, 1.25), seg(t, 1.0, 1.35), .35 * glide(seg(t, 8.3, 9.3)));
+      gc.open(1 - glide(seg(t, 1.75, 2.4))); gc.spin(0);
       // 2. оценка с геймпада
       PRESS.forEach(([tp, bi, ri, n]) => {
         const pk = tp <= t ? (t < tp + .07 ? (t - tp) / .07 : Math.exp(-(t - tp - .07) * 7)) : 0;
@@ -1891,7 +1906,7 @@ function buildVerdict() {
         B.glyph(ri, Math.max(Math.exp(-Math.max(0, t - tp - .28) * 2.2) * seg(t, tp + .25, tp + .3), .3 * seg(t, tp + .3, tp + .6)));
       });
       const dk = DOWN <= t ? (t < DOWN + .07 ? (t - DOWN) / .07 : Math.exp(-(t - DOWN - .07) * 7)) : 0; pad.parts.dpad[2].grp.position.z = pad.parts.dpad[2].z0 - .02 * dk; pad.parts.dpad[2].mat.emissiveIntensity = 2.6 * dk;
-      setLit(pad.parts.barMat, C.cyan, .2 + 1.2 * seg(t, 2.6, 2.75));
+      setLit(pad.parts.barMat, C.cyan, .2 + 1.2 * seg(t, 3.2, 3.4));
       const fl = t > SLAM ? Math.exp(-(t - SLAM) * 5) : 0;
       PRESS.forEach((pr, j) => {
         const ri = pr[2], n = rowN(t, pr);
@@ -1900,21 +1915,21 @@ function buildVerdict() {
         const done = seg(t, pr[0] + .3 + pr[3] * .05, pr[0] + .45 + pr[3] * .05);
         B.sign(ri, ri === 2 ? 0 : done, ri === 2 ? seg(t, DOWN + .55, DOWN + .65) : 0);
       });
-      const ph = pulse(t); cab.set(ph, t > 2.75 ? .12 : 0);
+      const ph = pulse(t); cab.set(ph, t > 3.4 ? .12 : 0);
       // 3. итог на счётчике: ролики раскручиваются и встают на 8 и 5 с лёгким перекатом
       const roll = (a, b, v) => { if (t < a) return 0; const k = seg(t, a, b); return v * E.outBack(k) + (k < 1 ? 0 : 0); };
-      B.total(roll(6.85, 7.45, 8), roll(6.95, 7.5, 5), seg(t, 7.4, 7.6) + .6 * fl);
+      B.total(roll(6.95, 7.55, 8), roll(7.05, 7.6, 5), seg(t, 7.5, 7.7) + .6 * fl);
       // 4. штамп
       const [p, rx, rz] = pose(t); st.g.position.copy(p); st.g.rotation.set(rx, 0, rz);
-      st.ink(glide(seg(t, 7.4, 7.7)) * (1 - .75 * seg(t, SLAM, SLAM + .4))); st.charge(glide(seg(t, 7.5, 8.2)) * (1 - .6 * glide(seg(t, 9.9, 10.9))));
+      st.ink(glide(seg(t, 7.7, 8.0)) * (1 - .75 * seg(t, SLAM, SLAM + .4))); st.charge(glide(seg(t, 7.8, 8.5)) * (1 - .6 * glide(seg(t, 10.1, 11.1))));
       st.body.emissiveIntensity = t > SLAM ? .35 * Math.exp(-(t - SLAM) * 4) : 0;
-      imprint.material.opacity = t < SLAM ? 0 : .96; imprint.material.emissiveIntensity = t < SLAM ? 0 : .5 * (1 - glide(seg(t, 9.8, 12))) + .12;
+      imprint.material.opacity = t < SLAM ? 0 : .96; imprint.material.emissiveIntensity = t < SLAM ? 0 : .5 * (1 - glide(seg(t, 10.0, 12.2))) + .12;
       PG.position.y = Y0 + hop(t, PG.position.x, PG.position.z); gc.g.position.y = caseC.y + hop(t, caseC.x, caseC.z); B.g.position.y = Y0 + hop(t, boardC.x, boardC.z) * .5;
       const vk = seg(t, SLAM - .04, SLAM + .5); fx.position.set(I.x, 1.0, I.z + 2.6); fx.material.opacity = Math.sin(vk * Math.PI) * .9;
       const vs = seg(t, SLAM, SLAM + 1.0); shock.position.set(I.x, Y0 + .02, I.z); shock.scale.setScalar(lerp(4, 15, E.outCubic(vs))); shock.material.opacity = vs > 0 && vs < 1 ? (1 - vs) * .8 : 0;
-      cam(t, t > SLAM && t < 9.95 ? .1 * Math.exp(-(t - SLAM) * 6) : 0);
+      cam(t, 0); // без тряски: удар передают свет, волна и подпрыгивающие предметы
     },
-    ov(t, q) { fade(q.bug, t, 11.6); },
+    ov(t, q) { fade(q.bug, t, 11.8); },
   };
 }
 
@@ -2177,9 +2192,9 @@ const PIECES = [
     beats: [[0, 'Геймпад: кнопка «домой»'], [1.0, 'Нажатия △ ○ ✕ □'], [1.5, 'Импульс по кабелю'], [2.75, 'Консоль включается'], [3.8, 'Створки слота раскрываются'], [4.5, 'Картридж с Е поднимается'], [7.25, 'Картридж входит в слот'], [8.2, 'Телевизор включается'], [8.5, 'Лента заливает стену'], [9.4, 'Знак Е в стекле консоли'], [12.05, 'Финал: «ИГРОВОЙ КАНАЛ»']] },
   { id: 'verdict', name: '«Вердикт»', build: buildVerdict, accent: '#7A35FF', dur: 15,
     pal: [['#5A24D8', 'Краска оттиска, «минус»'], ['#00D9FF', 'Деления шкал, «плюс»'], ['#E4E0D8', 'Бланк рецензии'], ['#1D1A26', 'Кожаная подложка']],
-    text: ['Обзор игры от начала до вердикта. На мониторе критика финал игры «Орбита»: прогресс доходит до 100%, появляется «Игра пройдена» и всплывает достижение. Коробка с диском закрывается. Оценку ставят с геймпада: каждая кнопка отвечает за свою категорию — ✕ геймплей, ○ графика, △ сюжет, □ звук. После нажатия импульс бежит по кабелю к табло, и полоска из десяти делений наливается, как шкала здоровья в игре. Крестовина «вниз» светится фиолетовым и снимает одно деление у сюжета — рядом загорается фиолетовый «минус», у остальных категорий горят «плюсы».', 'Роликовый счётчик крутит итог — 8,5. Штамп набирает краску, летит к бланку рецензии с плюсами и минусами и бьёт: предметы вздрагивают, деления на табло вспыхивают. Штамп уходит, на бланке остаётся фиолетовый оттиск «ВЕРДИКТ · ОБЗОРЫ ИГР». Камера поднимается краном со спиралью в вид сверху: оттиск, табло с итогом и геймпад — финальный титр.'],
-    meta: [['Хронометраж', '15 с · 450 кадров'], ['Камера', '10 планов: дуга с наездом на монитор, коробка с хлёсткой панорамой, ведение импульса по кабелю, высокий проезд вдоль табло, телевик через крестовину с переводом фокуса, орбита вокруг счётчика, камера-лифт со штампом, погоня с креном, удар с резким наездом, кран со спиралью в финал'], ['Звук', 'Джингл «игра пройдена», щелчок коробки, нажатия кнопок, писк делений как у шкалы здоровья, глухой «минус», треск роликового счётчика, шлепок в краску, свист перелёта, тяжёлый удар']],
-    beats: [[0, 'Монитор: прогресс 100%'], [0.8, '«Игра пройдена», достижение'], [1.6, 'Коробка закрывается'], [2.75, '✕ — геймплей: 9'], [3.75, '○ — графика: 9'], [4.45, '△ — сюжет: 8'], [5.3, 'Крестовина «вниз»: сюжет 7, «минус»'], [6.05, '□ — звук: 9'], [6.85, 'Итог 8,5'], [7.3, 'Штамп в краске'], [8.15, 'Перелёт к бланку'], [9.5, 'Удар: оттиск'], [10.0, 'Кран в вид сверху'], [11.6, 'Финал: «ВЕРДИКТ» и 8,5']] },
+    text: ['Обзор игры от начала до вердикта. На мониторе критика финал игры «Орбита»: прогресс доходит до 100%, появляется «Игра пройдена» и всплывает достижение. Коробка с диском закрывается. Оценку ставят с геймпада: каждая кнопка отвечает за свою категорию — ✕ геймплей, ○ графика, △ сюжет, □ звук. После нажатия импульс бежит по кабелю к табло, и полоска из десяти делений наливается, как шкала здоровья в игре. Крестовина «вниз» светится фиолетовым и снимает одно деление у сюжета — рядом загорается фиолетовый «минус», у остальных категорий горят «плюсы».', 'Роликовый счётчик крутит итог — 8,5. Штамп набирает краску, летит к бланку рецензии с плюсами и минусами и бьёт: предметы вздрагивают, деления на табло вспыхивают. Штамп уходит, на бланке остаётся фиолетовый оттиск «ВЕРДИКТ · ОБЗОРЫ ИГР». Всё снято одним непрерывным движением камеры без склеек; в конце камера поднимается краном в вид сверху: оттиск, табло с итогом и геймпад — финальный титр.'],
+    meta: [['Хронометраж', '15 с · 450 кадров'], ['Камера', 'Один непрерывный план без склеек: камера плавно идёт за действием — экран монитора, наклон к коробке, отъезд над табло к геймпаду (кнопки и шкалы в одном кадре), «минус» и итог, подъём к штампу, проводка над табло к бланку, кран вверх в финальный вид сверху'], ['Звук', 'Джингл «игра пройдена», щелчок коробки, нажатия кнопок, писк делений как у шкалы здоровья, глухой «минус», треск роликового счётчика, шлепок в краску, свист перелёта, тяжёлый удар']],
+    beats: [[0, 'Монитор: прогресс 100%'], [0.8, '«Игра пройдена», достижение'], [1.75, 'Коробка закрывается'], [3.4, '✕ — геймплей: 9'], [4.25, '○ — графика: 9'], [4.8, '△ — сюжет: 8'], [5.45, 'Крестовина «вниз»: сюжет 7, «минус»'], [6.3, '□ — звук: 9'], [6.95, 'Итог 8,5'], [7.6, 'Штамп в краске'], [8.45, 'Перелёт к бланку'], [9.75, 'Удар: оттиск'], [10.3, 'Кран в вид сверху'], [11.8, 'Финал: «ВЕРДИКТ» и 8,5']] },
   { id: 'gadget', name: '«Гаджетотека»', build: buildGadget, accent: '#00D9FF', dur: 15,
     pal: [['#00D9FF', 'Свет, сноски'], ['#232B3B', 'Циклорама'], ['#A7B1BF', 'Алюминий'], ['#07090D', 'Стекло шлема']],
     text: ['Предметная студия: бесшовный фон-циклорама со светлым горизонтом, верхний софтбокс, поворотный подиум со световым кольцом и экспонаты на плинтах. Портативная консоль, геймпад и наушники включаются один за другим. Подиум доворачивает к камере закрытую коробку с рисунком VR-шлема. Световой нож проходит по ленте-пломбе, крышка поднимается, уходит за подиум и ложится на пол.', 'Из ложемента поднимается VR-шлем — изогнутое тёмное стекло, алюминиевая рамка, вязаный ремень. Он раскладывается на детали, и к ним по очереди выходят сноски-карточки: от детали прочерчивается выноска, раскрывается карточка с номером, название печатается по буквам, ниже короткое пояснение — «Стекло дисплея», «Колёсико», «Линзы», «Светозащита», «Вязаный ремень». Сноски держатся около двух с половиной секунд на двух планах, затем сворачиваются, шлем собирается и ложится в коробку, загорается кольцо подиума. Финал сверху: подиум, экспонаты и крупный титр «ГАДЖЕТОТЕКА».'],
