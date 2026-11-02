@@ -84,7 +84,8 @@ for nm, arr in D.get('mats', {}).items():
     for ob in bpy.data.objects:
         for slot in getattr(ob, 'material_slots', []):
             if slot.material and slot.material.name.split('.')[0] == nm: slot.material = em
-    vals = [6 * c * min(1., c / .6) for c in cs]   # мягкий порог: дежурная подсветка в ролике почти не видна — в Eevee тоже
+    ek = {'Пиксель': 2.4, 'Волна': 3.}.get(nm, 6)   # сетка кубиков второго варианта светится большой площадью — в Eevee слабее
+    vals = [ek * c * min(1., c / .6) for c in cs]   # мягкий порог: дежурная подсветка в ролике почти не видна — в Eevee тоже
     if changing(vals): put(bag(em.node_tree, f'{nm}: свечение'), 'nodes["Principled BSDF"].inputs["Emission Strength"].default_value', 0, vals)
     else: em.node_tree.nodes['Principled BSDF'].inputs['Emission Strength'].default_value = vals[0]
 # физические материалы со свечением, которое в ролике меняется (лицо знака загорается): сила свечения по кадрам
