@@ -43,36 +43,38 @@ MAT = {
     'Полированный алюминий': principled('Полированный алюминий', hexc(0xe3e9f0), metal=1, rough=.2),
     'Глянцевый графит': principled('Глянцевый графит', hexc(0x06080c), metal=.2, rough=.45, coat=.6, coat_rough=.2),
     'Стена': principled('Стена', hexc(0x080a0f), rough=.95),
-    # второй вариант: объёмный знак из цианового акрила с графитовыми боками, консоль с крышкой из тёмного стекла
+    # второй вариант: объёмный знак из цианового акрила с графитовыми боками, пиксельная панель и кубики-воксели
     'Циановый акрил': principled('Циановый акрил', hexc(0x0c5a6e), metal=.05, rough=.2, coat=1, coat_rough=.06, emit=hexc(0x00d9ff), emit_k=0),
     'Графит знака': principled('Графит знака', hexc(0x1a2029), metal=.6, rough=.34, coat=.5, coat_rough=.25),
     'Тёмное стекло крышки': principled('Тёмное стекло крышки', hexc(0x07090d), metal=.2, rough=.3, coat=1, coat_rough=.32),
+    'Графит вокселя': principled('Графит вокселя', hexc(0x1c232e), metal=.45, rough=.4, coat=.5, coat_rough=.3),
+    'Пиксель выключен': principled('Пиксель выключен', hexc(0x0d131b), metal=.2, rough=.38, coat=.35, coat_rough=.3),
 }
 for ob in [o for o in bpy.data.objects if o.type == 'MESH']:
     for slot in ob.material_slots:
         if slot.material:
             nm = slot.material.name.split('.')[0]
             if nm in MAT: slot.material = MAT[nm]
-# ореол за знаком: светящаяся плоскость с градиентом, прозрачная, сила свечения анимируется
-halo = bpy.data.objects.get('Ореол')
-if halo:
-    old = halo.material_slots[0].material; img = None
+# ореолы (за знаком, на столе): светящиеся плоскости с градиентом, прозрачные, сила свечения анимируется
+for halo in [o for o in bpy.data.objects if o.name.startswith('Ореол') and o.type == 'MESH' and o.material_slots]:
+    hn = halo.name.split('.')[0]; old = halo.material_slots[0].material; img = None
     for n in old.node_tree.nodes:
         if n.type == 'TEX_IMAGE': img = n.image
-    m = bpy.data.materials.new('Ореол'); m.use_nodes = True; nt = m.node_tree; nt.nodes.clear()
-    o = nt.nodes.new('ShaderNodeOutputMaterial'); add = nt.nodes.new('ShaderNodeAddShader'); em = nt.nodes.new('ShaderNodeEmission'); tr = nt.nodes.new('ShaderNodeBsdfTransparent'); mix = nt.nodes.new('ShaderNodeMixShader')
+    m = bpy.data.materials.new(hn); m.use_nodes = True; nt = m.node_tree; nt.nodes.clear()
+    o = nt.nodes.new('ShaderNodeOutputMaterial'); em = nt.nodes.new('ShaderNodeEmission'); tr = nt.nodes.new('ShaderNodeBsdfTransparent'); mix = nt.nodes.new('ShaderNodeMixShader')
     tex = nt.nodes.new('ShaderNodeTexImage'); tex.image = img
     nt.links.new(tex.outputs['Color'], em.inputs['Color']); nt.links.new(tex.outputs['Alpha'], mix.inputs['Fac'])
     nt.links.new(tr.outputs[0], mix.inputs[1]); nt.links.new(em.outputs[0], mix.inputs[2]); nt.links.new(mix.outputs[0], o.inputs['Surface'])
     em.inputs['Strength'].default_value = 0; em.name = 'Свечение ореола'
     m.surface_render_method = 'BLENDED'; halo.data.materials.clear(); halo.data.materials.append(m)
-    op = [v[0] for v in D['mats'].get('Ореол', [[0, 0]])]
-    if changing(op): put(bag(m.node_tree, 'Ореол: свечение'), 'nodes["Свечение ореола"].inputs[1].default_value', 0, [1.4 * v for v in op])
+    op = [v[0] for v in D['mats'].get(hn, [[0, 0]])]
+    if changing(op): put(bag(m.node_tree, f'{hn}: свечение'), 'nodes["Свечение ореола"].inputs[1].default_value', 0, [1.4 * v for v in op])
+    else: em.inputs['Strength'].default_value = 1.4 * op[0]
 
 # светящиеся материалы, у которых в ролике меняется яркость (пиксели знака, подсветка экрана, индикатор, развёртка):
 # свечение Principled — оттенок из ролика, сила по кадрам
 for nm, arr in D.get('mats', {}).items():
-    if nm in ('Ореол',) or len(arr) < N or D.get('matKind', {}).get(nm) != 'MeshBasicMaterial': continue  # только то, что в ролике светится само
+    if nm.startswith('Ореол') or len(arr) < N or D.get('matKind', {}).get(nm) != 'MeshBasicMaterial': continue  # только то, что в ролике светится само
     cs = [max(r[2:5]) for r in arr]
     if not any(c > 0 for c in cs): continue
     ref = arr[max(range(N), key=lambda f: cs[f])]; hue = [c / max(ref[2:5]) for c in ref[2:5]]
