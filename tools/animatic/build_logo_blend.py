@@ -1,14 +1,15 @@
 # Сцена логотипа в Blender: геометрия и анимация из ролика, материалы Principled BSDF, свет, камера с глубиной резкости, Eevee.
-# blender -b -P build_logo_blend.py -- <папка с scene.glb и anim.json> <out.blend> <шрифт титров> <шрифт моно>
+# blender -b -P build_logo_blend.py -- <папка с scene.glb и anim.json> <out.blend> <шрифт титров> <шрифт моно> [название сцены] [префикс рендера]
 import bpy, json, sys, math, os
 from mathutils import Quaternion, Vector, Matrix
 
 args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else sys.argv[1:]
 src, out, font_title, font_mono = args[:4]
+scene_name = args[4] if len(args) > 4 else 'Логотип Е ТВ'; out_prefix = args[5] if len(args) > 5 else 'ETV_logo_'
 D = json.load(open(f'{src}/anim.json')); N, K = D['frames'], D['K']
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
-sc = bpy.context.scene; sc.name = 'Логотип Е ТВ'
+sc = bpy.context.scene; sc.name = scene_name
 sc.render.fps = 30; sc.frame_start = 1; sc.frame_end = N
 sc.render.resolution_x, sc.render.resolution_y = 1920, 1080
 bpy.ops.import_scene.gltf(filepath=f'{src}/scene.glb')
@@ -42,6 +43,10 @@ MAT = {
     'Полированный алюминий': principled('Полированный алюминий', hexc(0xe3e9f0), metal=1, rough=.2),
     'Глянцевый графит': principled('Глянцевый графит', hexc(0x06080c), metal=.2, rough=.45, coat=.6, coat_rough=.2),
     'Стена': principled('Стена', hexc(0x080a0f), rough=.95),
+    # второй вариант: объёмный знак из цианового акрила с графитовыми боками, консоль с крышкой из тёмного стекла
+    'Циановый акрил': principled('Циановый акрил', hexc(0x0c5a6e), metal=.05, rough=.2, coat=1, coat_rough=.06, emit=hexc(0x00d9ff), emit_k=0),
+    'Графит знака': principled('Графит знака', hexc(0x1a2029), metal=.6, rough=.34, coat=.5, coat_rough=.25),
+    'Тёмное стекло крышки': principled('Тёмное стекло крышки', hexc(0x07090d), metal=.2, rough=.3, coat=1, coat_rough=.32),
 }
 for ob in [o for o in bpy.data.objects if o.type == 'MESH']:
     for slot in ob.material_slots:
@@ -77,9 +82,14 @@ for nm, arr in D.get('mats', {}).items():
     for ob in bpy.data.objects:
         for slot in getattr(ob, 'material_slots', []):
             if slot.material and slot.material.name.split('.')[0] == nm: slot.material = em
-    vals = [6 * c for c in cs]
+    vals = [6 * c * min(1., c / .6) for c in cs]   # мягкий порог: дежурная подсветка в ролике почти не видна — в Eevee тоже
     if changing(vals): put(bag(em.node_tree, f'{nm}: свечение'), 'nodes["Principled BSDF"].inputs["Emission Strength"].default_value', 0, vals)
     else: em.node_tree.nodes['Principled BSDF'].inputs['Emission Strength'].default_value = vals[0]
+# физические материалы со свечением, которое в ролике меняется (лицо знака загорается): сила свечения по кадрам
+for nm, arr in D.get('mats', {}).items():
+    if nm not in MAT or len(arr) < N or D.get('matKind', {}).get(nm) == 'MeshBasicMaterial': continue
+    vals = [1.6 * r[1] for r in arr]
+    if changing(vals): put(bag(MAT[nm].node_tree, f'{nm}: свечение'), 'nodes["Principled BSDF"].inputs["Emission Strength"].default_value', 0, vals)
 glass = [m for m in bpy.data.materials if m.name.split('.')[0] == 'Стекло экрана']
 for m in glass:  # стекло поверх экрана: прозрачное с лаком, даёт отражения
     g = principled('Стекло экрана', hexc(0x0b1018), metal=.1, rough=.05, coat=1, coat_rough=.04)
@@ -215,7 +225,7 @@ except Exception as e:
 sc.render.image_settings.media_type = 'VIDEO'
 try: sc.render.image_settings.file_format = 'FFMPEG'; sc.render.ffmpeg.format = 'MPEG4'; sc.render.ffmpeg.codec = 'H264'
 except Exception as e: print('ffmpeg', e)
-sc.render.filepath = '//ETV_logo_'
+sc.render.filepath = '//' + out_prefix
 for scr in bpy.data.screens:
     for ar in scr.areas:
         if ar.type == 'VIEW_3D':

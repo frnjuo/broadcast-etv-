@@ -4,7 +4,7 @@
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const ROOT = path.resolve(__dirname, '..');
-const NAMES = ['01_zastavka_kanala', '02_verdikt', '03_gadzhetoteka', '04_otbivka', '05_logotip'];
+const NAMES = ['01_zastavka_kanala', '02_verdikt', '03_gadzhetoteka', '04_otbivka', '05_logotip', '06_logotip_obem'];
 (async () => {
   const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const p = await b.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 }); p.setDefaultTimeout(300000);
@@ -14,7 +14,7 @@ const NAMES = ['01_zastavka_kanala', '02_verdikt', '03_gadzhetoteka', '04_otbivk
   await p.waitForFunction(() => window.__etv, null, { timeout: 600000 });
   await p.waitForTimeout(500);
   const K = +(process.env.K || 0), N = +(process.env.N || 1);
-  for (const i of (process.env.ONLY ? process.env.ONLY.split(',').map(Number) : [0, 1, 2, 3, 4])) {
+  for (const i of (process.env.ONLY ? process.env.ONLY.split(',').map(Number) : [0, 1, 2, 3, 4, 5])) {
     const dir = path.join(ROOT, 'frames', NAMES[i]); fs.mkdirSync(dir, { recursive: true });
     const n = Math.round((await p.evaluate(i => window.__etv.durs[i], i)) * 30);
     for (let f = K; f < n; f += N) {

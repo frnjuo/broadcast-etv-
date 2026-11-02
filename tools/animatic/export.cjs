@@ -1,5 +1,5 @@
 // Выгрузка ролика для аниматика в Blender: геометрия без материалов (GLB) + покадровая анимация, камера, маркеры (JSON)
-// Запуск из корня репозитория: node tools/animatic/export.cjs <номер ролика 0–4> <папка> [full]
+// Запуск из корня репозитория: node tools/animatic/export.cjs <номер ролика 0–5> <папка> [full]
 const { chromium } = require('playwright');
 const fs = require('fs');
 (async () => {
@@ -113,7 +113,7 @@ const fs = require('fs');
           const key = o.name || (o === S.key ? 'Ключевой' : o === S.fill ? 'Заполняющий' : o === S.rimA ? 'Контровой 1' : o === S.rimB ? 'Контровой 2' : o === S.hemi ? 'Небо' : 'Свет');
           (lights[key] = lights[key] || { type: o.isDirectionalLight ? 'SUN' : o.isPointLight ? 'POINT' : o.isSpotLight ? 'SPOT' : 'HEMI', fr: [] }).fr.push([w.x, w.y, w.z, tg.x, tg.y, tg.z, o.intensity, o.color.r, o.color.g, o.color.b, o.distance || 0].map(v => Math.round(v * 1e4) / 1e4)); });
         // прозрачность и свечение именованных материалов (ореол и т. п.) и прозрачность титров
-        S.scene.traverse(o => { if (!o.isMesh || Array.isArray(o.material) || !o.material.name) return; const m = o.material; matKind[m.name] = m.type; const a = (mats[m.name] = mats[m.name] || []); if (a.length < N && a.lastF !== f) { a.lastF = f; a.push([m.opacity, m.emissiveIntensity ?? 0, m.color ? m.color.r : 0, m.color ? m.color.g : 0, m.color ? m.color.b : 0].map(v => Math.round(v * 1e4) / 1e4)); } });
+        S.scene.traverse(o => { if (!o.isMesh || !o.material) return; for (const m of (Array.isArray(o.material) ? o.material : [o.material])) { if (!m.name) continue; matKind[m.name] = m.type; const a = (mats[m.name] = mats[m.name] || []); if (a.length < N && a.lastF !== f) { a.lastF = f; a.push([m.opacity, m.emissiveIntensity ?? 0, m.color ? m.color.r : 0, m.color ? m.color.g : 0, m.color ? m.color.b : 0].map(v => Math.round(v * 1e4) / 1e4)); } } });
         texts.forEach(tx => { const g = S.scene.getObjectByName(tx.name); const ch = g && g.children.find(c => c.material); (tx.op = tx.op || []).push(ch ? Math.round(ch.material.opacity * 1e3) / 1e3 : 1); });
       }
       if (inst.exportCallouts) callouts.push(inst.exportCallouts(t));
