@@ -88,7 +88,7 @@ for nm, arr in D.get('mats', {}).items():
 # физические материалы со свечением, которое в ролике меняется (лицо знака загорается): сила свечения по кадрам
 for nm, arr in D.get('mats', {}).items():
     if nm not in MAT or len(arr) < N or D.get('matKind', {}).get(nm) == 'MeshBasicMaterial': continue
-    vals = [1.6 * r[1] for r in arr]
+    vals = [.7 * r[1] for r in arr]   # AgX высветляет свечение сильнее, чем тон-маппинг ролика
     if changing(vals): put(bag(MAT[nm].node_tree, f'{nm}: свечение'), 'nodes["Principled BSDF"].inputs["Emission Strength"].default_value', 0, vals)
 glass = [m for m in bpy.data.materials if m.name.split('.')[0] == 'Стекло экрана']
 for m in glass:  # стекло поверх экрана: прозрачное с лаком, даёт отражения
