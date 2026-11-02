@@ -2194,66 +2194,106 @@ function buildBumper() {
 }
 
 /* =========================================================
-   5. ЛОГОТИП · 5 с — знак Е как цельный объект: анодированный циан на лицевой стороне, полированный алюминий по бокам и фаске
-   По канавке в глянцевом полу бежит импульс → полоса загрузки под знаком заполняется → за знаком включается подсветка,
-   по фаске скользит блик → загорается гравировка «ИГРОВОЙ КАНАЛ».
+   5. ЛОГОТИП · 5 с — тёмный графитовый элемент с цифровым экраном: знак Е горит на нём циановыми пикселями
+   Тот же стол и свет, что в заставке канала; камера с одного ракурса. Анимирован сам логотип: индикатор питания,
+   экран просыпается, пиксели собирают знак Е, по экрану проходит вспышка, свет экрана ложится на корпус и коврик.
+   Варианты появления (?lv=N): 0 — «Тетрис», 1 — «Змейка», 2 — «Включение экрана», 3 — «Шум»; выбран LOGO_PICK (1).
    ========================================================= */
+const LOGO_PICK = 1; // выбрано: «Змейка» — знак читается в каждый момент, прямая отсылка к игре
 function buildLogo() {
-  const S = makeStageP({ exposure: 1.15, fill: .18 }); S.key.intensity = 1.45; S.rimK = .1; S.neonCol = C.cyan;
-  S.rimB.color.set(0x9fdcff); // контровые без фиолетового: на металле они давали цветные пятна; ключевой свет мягче — пол остаётся тёмным
-  S.scene.background = new THREE.Color(0x06080c); S.scene.fog = new THREE.Fog(0x06080c, 26, 60);
-  const SC = 3.2, DEP = .3, BV = .03, logo = new THREE.Group(); logo.name = 'Знак Е'; S.scene.add(logo);
-  const geo = new THREE.ExtrudeGeometry(logoShape(), { depth: DEP, bevelEnabled: true, bevelThickness: BV, bevelSize: .022, bevelSegments: 5, curveSegments: 48 });
-  geo.scale(SC, SC, SC); geo.computeBoundingBox(); const bb = geo.boundingBox; geo.translate(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2); geo.computeVertexNormals();
-  const W = bb.max.x - bb.min.x, H = bb.max.y - bb.min.y, D = bb.max.z - bb.min.z;
-  const anod = new THREE.MeshPhysicalMaterial({ name: 'Анодированный циан', color: 0x08a9c9, metalness: .92, roughness: .3, anisotropy: .6, clearcoat: .35, clearcoatRoughness: .25, envMapIntensity: 1.25 });
-  const polish = new THREE.MeshPhysicalMaterial({ name: 'Полированный алюминий', color: 0xe3e9f0, metalness: 1, roughness: .2, envMapIntensity: 1.35 });
-  const E3 = new THREE.Mesh(geo, [anod, polish]); E3.name = 'Е'; E3.castShadow = E3.receiveShadow = true; logo.add(E3);
-  // глянцевый пол: полупрозрачный графит над зеркальной копией сцены (отражение без лишнего прохода рендера)
-  const floorM = new THREE.MeshPhysicalMaterial({ name: 'Глянцевый графит', color: 0x06080c, roughness: .5, metalness: .2, clearcoat: .45, clearcoatRoughness: .3, transparent: true, opacity: .8, envMapIntensity: .2 });
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(120, 80), floorM); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; floor.name = 'Пол'; S.scene.add(floor);
-  const mirror = new THREE.Group(); mirror.scale.y = -1; mirror.userData.noExport = true; S.scene.add(mirror);
-  const mE = new THREE.Mesh(geo, [anod, polish]); mirror.add(mE);
-  // задняя стена и ореол подсветки за знаком
-  const wall = new THREE.Mesh(new THREE.PlaneGeometry(120, 40), new THREE.MeshStandardMaterial({ name: 'Стена', color: 0x080a0f, roughness: .95 })); wall.position.set(0, 20, -9); wall.name = 'Стена'; S.scene.add(wall);
-  const haloT = cnv(512, 256, q => { const g = q.createRadialGradient(256, 210, 10, 256, 210, 260); g.addColorStop(0, 'rgba(0,217,255,.75)'); g.addColorStop(.35, 'rgba(0,217,255,.2)'); g.addColorStop(1, 'rgba(0,217,255,0)'); q.fillStyle = g; q.fillRect(0, 0, 512, 256); });
-  const halo = new THREE.Mesh(new THREE.PlaneGeometry(26, 13), new THREE.MeshBasicMaterial({ name: 'Ореол', map: haloT, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })); halo.position.set(0, 5.6, -8.9); halo.name = 'Ореол'; S.scene.add(halo);
-  // подсветка низко и далеко за знаком: светит в стену и на кромки, не бликует на верхних гранях
-  const back = new THREE.PointLight(C.cyan, 0, 9, 2); back.position.set(0, 1.4, -5.6); back.name = 'Подсветка'; S.scene.add(back);
-  // канавка в полу перед знаком: алюминиевая кромка, тёмное дно, деления полосы загрузки под знаком
-  const GZ = D / 2 + 1.0, GX0 = -18, GX1 = W / 2 + .3;
-  const groove = new THREE.Group(); groove.name = 'Канавка'; S.scene.add(groove);
-  meshTo(groove, new THREE.BoxGeometry(GX1 - GX0, .02, .36), PM.aluDark, [(GX0 + GX1) / 2, .01, GZ]);
-  meshTo(groove, new THREE.BoxGeometry(GX1 - GX0 - .04, .02, .24), PM.hole, [(GX0 + GX1) / 2, .012, GZ]);
-  const NS = 12, sx0 = -W / 2, sw = W / NS;
-  const glowM = lit(C.cyan, 2.6); glowM.name = 'Свет циан';
-  const segOn = Array.from({ length: NS }, (_, i) => { const m = new THREE.Mesh(new RoundedBoxGeometry(sw - .07, .03, .17, 2, .012), glowM); m.position.set(sx0 + sw * (i + .5), .03, GZ); m.scale.setScalar(.0001); m.name = 'Деление ' + (i + 1); S.scene.add(m); return m; });
-  Array.from({ length: NS }, (_, i) => meshTo(groove, new RoundedBoxGeometry(sw - .07, .02, .17, 2, .01), PM.graphite2, [sx0 + sw * (i + .5), .022, GZ]));
-  const spark = new THREE.Mesh(new THREE.CapsuleGeometry(.07, .9, 4, 12), glowM); spark.rotation.z = Math.PI / 2; spark.position.set(GX0, .05, GZ); spark.name = 'Импульс'; S.scene.add(spark);
-  // гравировка «ИГРОВОЙ КАНАЛ»: видна с начала тёмной, в конце загорается циановым
-  const tagT = { s: 'ИГРОВОЙ КАНАЛ', font: `600 120px ${MONO}`, h: .8, layers: 1, skew: 0, track: 22, noShadow: true };
-  const T0 = makeText([{ s: tagT.s, c: '#3a4352' }], tagT); T0.g.position.set(0, .006, GZ + 1.25); S.scene.add(T0.g); T0.show(1);
-  const T1 = makeText([{ s: tagT.s, c: '#7fe9ff' }], tagT); T1.g.position.set(0, .009, GZ + 1.25); S.scene.add(T1.g);
-  // скользящий блик по фаске
-  const sweep = new THREE.PointLight(0xf2f8ff, 0, 7, 2); sweep.name = 'Блик'; S.scene.add(sweep);
-  const C0 = V(0, H / 2, 0), pulseX = t => lerp(-14.5, sx0, sine(seg(t, .0, 1.15)));
-  const cam = shots(S, [
-    // 1. низкий проезд вдоль канавки: импульс бежит к знаку, за ним — размытая нижняя перекладина Е
-    { t0: 0, t1: 1.75, fn: (k, t) => { const x = Math.max(-13.5, Math.min(pulseX(t) - 1.6, -3.6 - 1.2 * (1 - k))); return [[x, .62, GZ + 2.6], [x + 3.2, .25, GZ - .2]]; }, fov: [30, 30], fp: t => [Math.min(pulseX(t), sx0) + .4, .05, GZ], ap: .02, third: [.3, .4] },
-    // 2. облёт справа: видно толщину знака, полированные стенки и фаску; включается подсветка, по фаске идёт блик
-    { t0: 1.75, t1: 3.2, fn: orb(C0.toArray(), [10.5, 9.6], [.6, 1.4], [62, 30], [0, -.2, 0]), fov: [32, 32], fp: C0.toArray(), ap: .008, third: [-.5, 0] },
-    // 3. мягкий подъём и наезд на финальный ракурс 3/4: знак, отражение, канавка и гравировка
-    { t0: 3.2, t1: 5, fn: orb(V(0, H / 2 - .4, 1.2).toArray(), [15.2, 14.0], [2.9, 3.6], [24, 16]), fov: [30, 30], fp: C0.toArray(), ap: .004, third: [0, -.25] },
-  ]);
+  const S = makeStageP({ exposure: 1.12 }); S.rimK = .08; S.rimB.color.set(0x9fdcff);
+  const ENV = makeEnvDesk(S); ENV.tv(0); ENV.led(.1);
+  const VAR = QN('lv', LOGO_PICK), Y0 = .05;
+  // корпус: графит, алюминиевый шов, крышка из тёмного стекла, утопленный экран
+  const W = 5.6, D = 4.4, H = .62, dev = new THREE.Group(); dev.name = 'Логотип'; dev.position.set(0, Y0, 0); dev.rotation.y = -.1; S.scene.add(dev);
+  meshTo(dev, slb(W, H, D, .95), PM.graphite, [0, 0, 0]);
+  meshTo(dev, slb(W + .04, .05, D + .04, .97), PM.alu, [0, H * .45, 0]);
+  meshTo(dev, slb(W - .24, .03, D - .24, .8), PM.glass, [0, H, 0]);
+  const NX = 21, NY = 15, P = .19, top = H + .03, SW = NX * P + .26, SD = NY * P + .26;
+  meshTo(dev, slb(SW + .12, .012, SD + .12, .2), PM.aluDark, [0, top - .004, 0]);
+  meshTo(dev, slb(SW, .014, SD, .14), PM.hole, [0, top, 0]);
+  const ledM = lit(C.cyan, .2); ledM.name = 'Индикатор'; const led = new THREE.Mesh(new RoundedBoxGeometry(.34, .03, .07, 2, .015), ledM); led.position.set(W / 2 - .75, top + .005, D / 2 - .32); led.name = 'Индикатор'; dev.add(led);
+  // сетка пикселей: выключенные — одной сеткой, горящие — по одному, чтобы двигаться
+  const cx = i => (i - (NX - 1) / 2) * P, cz = j => -(j - (NY - 1) / 2) * P, cy = top + .02;
+  const offG = mergeGeometries(Array.from({ length: NX * NY }, (_, k) => new RoundedBoxGeometry(.15, .016, .15, 1, .01).translate(cx(k % NX), cy - .006, cz(Math.floor(k / NX)))));
+  const offM = new THREE.MeshStandardMaterial({ name: 'Пиксель выключен', color: 0x0d131b, roughness: .35, metalness: .2 }); const off = new THREE.Mesh(offG, offM); off.name = 'Пиксели'; dev.add(off);
+  // знак Е на сетке: клетка горит, если её центр внутри контура знака
+  const inE = (x, y) => { let c = false; for (let a = 0, b = LOGO_PTS.length - 1; a < LOGO_PTS.length; b = a++) { const p = LOGO_PTS[a], q = LOGO_PTS[b]; if ((p.y > y) !== (q.y > y) && x < (q.x - p.x) * (y - p.y) / (q.y - p.y) + p.x) c = !c; } return c; };
+  const cells = []; for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) if (inE((i - .5) * 1.6 / 19, -.55 + (j - .5) * 1.1 / 13)) cells.push({ i, j });
+  const glowM = lit(C.cyan, 2.4); glowM.name = 'Свет циан';
+  const cellG = new RoundedBoxGeometry(.15, .03, .15, 1, .012);
+  cells.forEach((c, k) => { c.m = new THREE.Mesh(cellG, glowM); c.m.name = 'Пиксель ' + (k + 1); c.m.position.set(cx(c.i), cy, cz(c.j)); c.m.scale.setScalar(.0001); dev.add(c.m); });
+  const key = (i, j) => j * NX + i, isE = new Set(cells.map(c => key(c.i, c.j)));
+  // подсветка экрана (полоса кинескопа), вспышка-развёртка, стекло поверх
+  const blM = lit(0x0a3c48, 1); blM.name = 'Подсветка экрана';
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(NX * P, NY * P), blM); back.rotation.x = -Math.PI / 2; back.position.set(0, top + .009, 0); back.scale.set(1, .0001, 1); back.name = 'Подсветка экрана'; dev.add(back);
+  const barM = lit(0xbff6ff, 2.6); barM.name = 'Развёртка'; const bar = new THREE.Mesh(new THREE.BoxGeometry(NX * P + .1, .02, .05), barM); bar.position.set(0, cy + .03, cz(NY - 1)); bar.scale.setScalar(.0001); bar.name = 'Развёртка'; dev.add(bar);
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(SW, SD), new THREE.MeshPhysicalMaterial({ name: 'Стекло экрана', color: 0x0b1018, transparent: true, opacity: .16, roughness: .05, clearcoat: 1, clearcoatRoughness: .04, metalness: .1, envMapIntensity: 1.4, depthWrite: false })); glass.rotation.x = -Math.PI / 2; glass.position.set(0, top + .07, 0); glass.name = 'Стекло экрана'; dev.add(glass);
+  // свет экрана вокруг: точечный свет над экраном и мягкое свечение на коврике
+  const spill = new THREE.PointLight(C.cyan, 0, 12, 2); spill.position.set(0, 2.2, 0); spill.name = 'Свет экрана'; dev.add(spill);
+  const haloT = cnv(256, 256, q => { const g = q.createRadialGradient(128, 128, 30, 128, 128, 128); g.addColorStop(0, 'rgba(0,217,255,.6)'); g.addColorStop(.5, 'rgba(0,217,255,.16)'); g.addColorStop(1, 'rgba(0,217,255,0)'); q.fillStyle = g; q.fillRect(0, 0, 256, 256); });
+  const halo = new THREE.Mesh(new THREE.PlaneGeometry(13, 11), new THREE.MeshBasicMaterial({ name: 'Ореол', map: haloT, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })); halo.rotation.x = -Math.PI / 2; halo.position.set(0, Y0 + .012, 0); halo.name = 'Ореол'; S.scene.add(halo);
+
+  // ---------- варианты появления знака: для каждой клетки — когда загорается и где находится в момент t ----------
+  const T1 = 2.85, rnd = rng(17);
+  let plan;
+  if (VAR === 0) {
+    // «Тетрис»: клетки знака собираются в фигуры по 4 и падают сверху экрана в свои места, снизу вверх
+    const left = new Set(cells.map(c => key(c.i, c.j))), pieces = [];
+    [...cells].sort((a, b) => a.j - b.j || a.i - b.i).forEach(c => {
+      if (!left.has(key(c.i, c.j))) return; const pc = [c]; left.delete(key(c.i, c.j));
+      for (let q = 0; q < pc.length && pc.length < 4; q++) for (const [di, dj] of [[1, 0], [0, 1], [-1, 0]]) { const n = cells.find(o => o.i === pc[q].i + di && o.j === pc[q].j + dj); if (n && left.has(key(n.i, n.j)) && pc.length < 4) { pc.push(n); left.delete(key(n.i, n.j)); } }
+      pieces.push(pc);
+    });
+    pieces.forEach((pc, k) => { const s = .55 + k * (T1 - .9) / pieces.length, topJ = Math.max(...pc.map(c => c.j)), drop = NY - 1 - topJ, dur = .1 + .055 * Math.sqrt(drop) * 2.2; pc.forEach(c => { c.t0 = s; c.t1 = s + dur; c.drop = drop; }); });
+    plan = (c, t) => { if (t < c.t0) return [0, 0]; const k = seg(t, c.t0, c.t1), fall = c.drop * (1 - k * k); return [Math.min(1, (t - c.t0) / .05), fall + (t > c.t1 ? -.08 * Math.sin((t - c.t1) * 30) * Math.exp(-(t - c.t1) * 18) : 0)]; };
+  } else if (VAR === 1) {
+    // «Змейка»: голова с ярким хвостом обходит контур знака без разрывов (обход по соседям по часовой стрелке), след остаётся гореть;
+    // когда змейка замыкает контур, знак заливается изнутри от краёв к середине
+    const inC = (i, j) => isE.has(key(i, j)), cellAt = (i, j) => cells.find(o => o.i === i && o.j === j);
+    const dirs = [[-1, 0], [-1, 1], [0, 1], [1, 1], [1, 0], [1, -1], [0, -1], [-1, -1]];
+    const s0 = cells.reduce((a, c) => (c.j < a.j || (c.j === a.j && c.i < a.i)) ? c : a);
+    const path = [s0], seen = new Set([key(s0.i, s0.j)]); let cur = s0, bp = [s0.i - 1, s0.j];
+    for (let n = 0; n < 4000; n++) {
+      const idx = dirs.findIndex(([di, dj]) => cur.i + di === bp[0] && cur.j + dj === bp[1]); let nx = null;
+      for (let k = 1; k <= 8; k++) { const [di, dj] = dirs[(idx + k) % 8]; if (inC(cur.i + di, cur.j + dj)) { const [pi, pj] = dirs[(idx + k - 1) % 8]; bp = [cur.i + pi, cur.j + pj]; nx = cellAt(cur.i + di, cur.j + dj); break; } }
+      if (!nx || nx === s0) break; cur = nx; if (!seen.has(key(cur.i, cur.j))) { seen.add(key(cur.i, cur.j)); path.push(cur); }
+    }
+    const T0s = .5, sp = (T1 - .45 - T0s) / path.length; path.forEach((c, k) => { c.t0 = T0s + k * sp; c.edge = true; });
+    // заливка: расстояние от контура по клеткам знака
+    const dist = new Map(path.map(c => [key(c.i, c.j), 0])), q = [...path];
+    while (q.length) { const c = q.shift(), d = dist.get(key(c.i, c.j)); for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = cellAt(c.i + di, c.j + dj); if (n && !dist.has(key(n.i, n.j))) { dist.set(key(n.i, n.j), d + 1); q.push(n); } } }
+    cells.filter(c => !c.edge).forEach(c => { c.t0 = T1 - .42 + dist.get(key(c.i, c.j)) * .1; });
+    const head = t => (t - T0s) / sp;
+    plan = (c, t) => { if (t < c.t0) return [0, 0]; if (!c.edge) return [Math.min(1, (t - c.t0) / .06), 0]; const behind = head(t) - path.indexOf(c); return [behind < 1 ? 1.35 : behind < 6 ? 1.15 - .03 * behind : 1, 0]; };
+  } else if (VAR === 2) {
+    // «Включение экрана»: полоса кинескопа раскрывается, развёртка сверху вниз проявляет знак с мерцанием
+    cells.forEach(c => { c.t0 = 1.0 + (NY - 1 - c.j) * (T1 - 1.3) / NY + rnd() * .05; });
+    plan = (c, t) => t < c.t0 ? [0, 0] : [(.55 + .45 * Math.sin((t - c.t0) * 60) * Math.exp(-(t - c.t0) * 9)) * Math.min(1, (t - c.t0) / .03) + .45 * seg(t, c.t0 + .1, c.t0 + .35), 0];
+  } else {
+    // «Шум»: по всему экрану мерцают случайные пиксели, клетки знака по очереди «настраиваются», шум гаснет
+    cells.forEach(c => { c.t0 = .9 + rnd() * (T1 - 1.2); });
+    plan = (c, t) => [t < c.t0 ? (rnd() < .25 * seg(t, .5, .9) ? .6 : 0) : 1, 0];
+  }
+  // шум для варианта 3: отдельные клетки вне знака (только в нём)
+  const noise = VAR === 3 ? Array.from({ length: NX * NY }, (_, k) => ({ i: k % NX, j: Math.floor(k / NX) })).filter(c => !isE.has(key(c.i, c.j))).map(c => { const m = new THREE.Mesh(cellG, glowM); m.position.set(cx(c.i), cy, cz(c.j)); m.scale.setScalar(.0001); dev.add(m); return m; }) : [];
+
+  // камера: один ракурс — 3/4 сверху, медленный наезд
+  const C0 = V(0, Y0 + H, .2);
+  const cam = shots(S, [{ t0: 0, t1: 5, fn: orb(C0.toArray(), [7.2, 6.7], [6.1, 5.7], [-14, -11]), fov: [30, 30], fp: C0.toArray(), ap: .006, e: k => k }]);
   return {
-    S, dur: 5, overlay: '',
-    exportFull: true,
+    S, dur: 5, overlay: '', exportFull: true,
     update(t) {
-      spark.position.x = pulseX(t); spark.visible = t < 1.25; spark.scale.setScalar(t < 1.15 ? 1 : Math.max(.0001, 1 - seg(t, 1.15, 1.25)));
-      segOn.forEach((m, i) => { const k = E.outCubic(seg(t, 1.15 + i * .055, 1.3 + i * .055)); m.scale.setScalar(Math.max(.0001, k)); });
-      const pw = glide(seg(t, 1.95, 2.6)); halo.material.opacity = .45 * pw; back.intensity = 7 * pw;
-      const sk = seg(t, 2.05, 3.0); sweep.position.set(lerp(-W / 2 - 1.5, W / 2 + 1.5, sine(sk)), lerp(H + .6, H * .3, sk), D / 2 + 1.1); sweep.intensity = 6 * Math.sin(Math.PI * sk);
-      T1.show(glide(seg(t, 3.25, 3.9)));
+      setLit(led.material, C.cyan, .2 + 2.8 * seg(t, .15, .25));                                   // питание
+      const crt = VAR === 2 ? glide(seg(t, .45, .9)) : glide(seg(t, .3, .55)); back.scale.set(1, 1, Math.max(.0001, crt)); setLit(blM, 0x0a3c48, (VAR === 2 ? 1.6 : 1) * crt * (1 - .5 * seg(t, 1.2, 2)));
+      let litN = 0;
+      cells.forEach(c => { const [k, dy] = plan(c, t); c.m.scale.setScalar(Math.max(.0001, Math.min(1.4, k))); c.m.position.z = cz(c.j) - dy * P; litN += Math.min(1, k); });
+      noise.forEach((m, n) => { const on = t > .5 && t < T1 + .1 && Math.sin(n * 12.9898 + Math.floor(t * 24) * 78.233) * 43758.5 % 1 > .86 - .2 * (1 - seg(t, 1.5, T1)); m.scale.setScalar(on ? .9 : .0001); });
+      const fr = litN / cells.length, fl = Math.sin(Math.PI * seg(t, T1, T1 + .35));
+      bar.scale.setScalar(fl > .002 ? 1 : .0001); bar.position.z = lerp(cz(NY - 1) - .2, cz(0) + .2, seg(t, T1, T1 + .35));
+      const br = t > T1 + .35 ? .05 * (.5 - .5 * Math.cos((t - T1 - .35) * 3.2)) : 0;                 // «дыхание» знака: только вверх от основной яркости
+      setLit(glowM, C.cyan, 2.4 + 1.4 * fl + br * 6);
+      spill.intensity = 4.5 * fr + 5 * fl + br * 8; halo.material.opacity = .32 * fr + .22 * fl + br * .6;
       cam(t);
     },
     ov() { },
@@ -2283,10 +2323,10 @@ const PIECES = [
     meta: [['Хронометраж', '5 с · 150 кадров'], ['Камера', '3 плана: макро фаски, блик по пластине, отъезд с креном на общий план'], ['Звук', 'Металлический звон блика, мягкий проход импульса, короткий низкий акцент на полном знаке']],
     beats: [[0, 'Макро: фаска и импульс'], [1.5, 'Блик по пластине'], [2.6, 'Отъезд с креном'], [2.75, 'Знак загорается целиком']] },
   { id: 'logo', name: 'Логотип', build: buildLogo, accent: '#00D9FF', dur: 5,
-    pal: [['#08A9C9', 'Анодированный циан'], ['#E3E9F0', 'Полированный алюминий'], ['#0B0E14', 'Глянцевый графит'], ['#00D9FF', 'Свет, загрузка']],
-    text: ['Знак Е — цельный объёмный объект: лицевая сторона из анодированного металла фирменного цианового цвета, боковые стенки и фаска — полированный алюминий. Знак стоит на тёмном глянцевом полу и отражается в нём. По канавке в полу бежит световой импульс и заполняет полосу загрузки под знаком.', 'Полоса заполнена — за знаком включается подсветка, на задней стене появляется ореол, по полированной фаске скользит блик. Камера облетает знак, показывая его толщину, и плавно поднимается на финальный ракурс 3/4. Гравировка «ИГРОВОЙ КАНАЛ» в полу загорается циановым.'],
-    meta: [['Хронометраж', '5 с · 150 кадров'], ['Камера', '3 плана с мягкими переходами: низкий проезд вдоль канавки за импульсом, облёт знака справа, подъём и наезд на финальный ракурс 3/4'], ['Звук', 'Тихий гул, бегущий импульс, щелчки делений загрузки, мягкий «вдох» подсветки, металлический звон блика']],
-    beats: [[0, 'Импульс бежит по канавке'], [1.15, 'Полоса загрузки заполняется'], [1.95, 'Подсветка за знаком'], [2.05, 'Блик по фаске'], [3.25, '«ИГРОВОЙ КАНАЛ» загорается']] },
+    pal: [['#1B2029', 'Графит корпуса'], ['#A7B1BF', 'Алюминиевый шов'], ['#0D131B', 'Пиксели экрана'], ['#00D9FF', 'Знак Е на экране']],
+    text: ['Логотип — тёмный графитовый элемент, похожий на корпус игровой консоли: алюминиевый шов по периметру, крышка из тёмного стекла и утопленный цифровой экран из пиксельной сетки. Он лежит на том же столе с прошитым ковриком, что и в заставке канала, при том же низком боковом свете. Камера смотрит с одного ракурса — 3/4 сверху, так что видна толщина корпуса.', 'Анимирован сам логотип. Загорается индикатор питания, экран просыпается, и по пиксельной сетке, как в игре «Змейка», бежит светящаяся змейка с ярким хвостом: она без разрывов обходит контур знака Е и оставляет горящий след. Когда контур замкнут, знак заливается изнутри, по экрану проходит яркая развёртка, свет экрана ложится на корпус и коврик вокруг, знак мягко «дышит».'],
+    meta: [['Хронометраж', '5 с · 150 кадров'], ['Камера', 'Один ракурс 3/4 сверху, медленный наезд'], ['Звук', 'Щелчок питания, тихий писк экрана, быстрые восьмибитные «шаги» змейки, звонкий аккорд на развёртке']],
+    beats: [[0.15, 'Индикатор питания'], [0.3, 'Экран просыпается'], [0.5, 'Змейка обходит контур Е'], [2.43, 'Знак заливается'], [2.85, 'Развёртка по экрану'], [3.2, 'Знак горит, свет вокруг']] },
 ];
 const $ = id => document.getElementById(id);
 const ov = $('ov'), scrub = $('scrub'), playBtn = $('play');

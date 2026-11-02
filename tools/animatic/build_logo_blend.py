@@ -42,7 +42,6 @@ MAT = {
     'Полированный алюминий': principled('Полированный алюминий', hexc(0xe3e9f0), metal=1, rough=.2),
     'Глянцевый графит': principled('Глянцевый графит', hexc(0x06080c), metal=.2, rough=.45, coat=.6, coat_rough=.2),
     'Стена': principled('Стена', hexc(0x080a0f), rough=.95),
-    'Свет циан': principled('Свет циан', (0, 0, 0), rough=.4, emit=hexc(0x00d9ff), emit_k=14),
 }
 for ob in [o for o in bpy.data.objects if o.type == 'MESH']:
     for slot in ob.material_slots:
@@ -63,7 +62,31 @@ if halo:
     em.inputs['Strength'].default_value = 0; em.name = 'Свечение ореола'
     m.surface_render_method = 'BLENDED'; halo.data.materials.clear(); halo.data.materials.append(m)
     op = [v[0] for v in D['mats'].get('Ореол', [[0, 0]])]
-    if changing(op): put(bag(m.node_tree, 'Ореол: свечение'), 'nodes["Свечение ореола"].inputs[1].default_value', 0, [3.2 * v for v in op])
+    if changing(op): put(bag(m.node_tree, 'Ореол: свечение'), 'nodes["Свечение ореола"].inputs[1].default_value', 0, [1.4 * v for v in op])
+
+# светящиеся материалы, у которых в ролике меняется яркость (пиксели знака, подсветка экрана, индикатор, развёртка):
+# свечение Principled — оттенок из ролика, сила по кадрам
+for nm, arr in D.get('mats', {}).items():
+    if nm in ('Ореол',) or len(arr) < N or D.get('matKind', {}).get(nm) != 'MeshBasicMaterial': continue  # только то, что в ролике светится само
+    cs = [max(r[2:5]) for r in arr]
+    if not any(c > 0 for c in cs): continue
+    ref = arr[max(range(N), key=lambda f: cs[f])]; hue = [c / max(ref[2:5]) for c in ref[2:5]]
+    targets = [m for m in bpy.data.materials if m.name.split('.')[0] == nm]
+    if not targets: continue
+    em = principled(nm, (0, 0, 0), rough=.4, emit=tuple(hue), emit_k=0); MAT[nm] = em
+    for ob in bpy.data.objects:
+        for slot in getattr(ob, 'material_slots', []):
+            if slot.material and slot.material.name.split('.')[0] == nm: slot.material = em
+    vals = [6 * c for c in cs]
+    if changing(vals): put(bag(em.node_tree, f'{nm}: свечение'), 'nodes["Principled BSDF"].inputs["Emission Strength"].default_value', 0, vals)
+    else: em.node_tree.nodes['Principled BSDF'].inputs['Emission Strength'].default_value = vals[0]
+glass = [m for m in bpy.data.materials if m.name.split('.')[0] == 'Стекло экрана']
+for m in glass:  # стекло поверх экрана: прозрачное с лаком, даёт отражения
+    g = principled('Стекло экрана', hexc(0x0b1018), metal=.1, rough=.05, coat=1, coat_rough=.04)
+    g.node_tree.nodes['Principled BSDF'].inputs['Alpha'].default_value = .16; g.surface_render_method = 'BLENDED'
+    for ob in bpy.data.objects:
+        for slot in getattr(ob, 'material_slots', []):
+            if slot.material == m: slot.material = g
 
 # ---------- анимация объектов ----------
 for name, arr in D['anim'].items():

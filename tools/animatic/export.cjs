@@ -88,7 +88,7 @@ const fs = require('fs');
       });
       tracks.forEach((tr, key) => { if (!seen.has(key)) tr.fr[f] = null; });
     };
-    const K = 11, rec = nodes.map(() => null), first = new Float32Array(nodes.length * K), cam = [], callouts = [], lights = {}, mats = {};
+    const K = 11, rec = nodes.map(() => null), first = new Float32Array(nodes.length * K), cam = [], callouts = [], lights = {}, mats = {}, matKind = {};
     const snap = (o, a, off) => { a[off] = o.position.x; a[off + 1] = o.position.y; a[off + 2] = o.position.z; a[off + 3] = o.quaternion.x; a[off + 4] = o.quaternion.y; a[off + 5] = o.quaternion.z; a[off + 6] = o.quaternion.w; a[off + 7] = o.scale.x; a[off + 8] = o.scale.y; a[off + 9] = o.scale.z; a[off + 10] = effVis(o); };
     const tmp = new Float32Array(K);
     for (let f = 0; f < N; f++) {
@@ -113,7 +113,7 @@ const fs = require('fs');
           const key = o.name || (o === S.key ? 'Ключевой' : o === S.fill ? 'Заполняющий' : o === S.rimA ? 'Контровой 1' : o === S.rimB ? 'Контровой 2' : o === S.hemi ? 'Небо' : 'Свет');
           (lights[key] = lights[key] || { type: o.isDirectionalLight ? 'SUN' : o.isPointLight ? 'POINT' : o.isSpotLight ? 'SPOT' : 'HEMI', fr: [] }).fr.push([w.x, w.y, w.z, tg.x, tg.y, tg.z, o.intensity, o.color.r, o.color.g, o.color.b, o.distance || 0].map(v => Math.round(v * 1e4) / 1e4)); });
         // прозрачность и свечение именованных материалов (ореол и т. п.) и прозрачность титров
-        S.scene.traverse(o => { if (!o.isMesh || Array.isArray(o.material) || !o.material.name) return; const m = o.material; (mats[m.name] = mats[m.name] || []).push([m.opacity, m.emissiveIntensity ?? 0]); });
+        S.scene.traverse(o => { if (!o.isMesh || Array.isArray(o.material) || !o.material.name) return; const m = o.material; matKind[m.name] = m.type; const a = (mats[m.name] = mats[m.name] || []); if (a.length < N && a.lastF !== f) { a.lastF = f; a.push([m.opacity, m.emissiveIntensity ?? 0, m.color ? m.color.r : 0, m.color ? m.color.g : 0, m.color ? m.color.b : 0].map(v => Math.round(v * 1e4) / 1e4)); } });
         texts.forEach(tx => { const g = S.scene.getObjectByName(tx.name); const ch = g && g.children.find(c => c.material); (tx.op = tx.op || []).push(ch ? Math.round(ch.material.opacity * 1e3) / 1e3 : 1); });
       }
       if (inst.exportCallouts) callouts.push(inst.exportCallouts(t));
@@ -134,7 +134,7 @@ const fs = require('fs');
     const glb = await new GLTFExporter().parseAsync(S.scene, { binary: true, onlyVisible: false });
     saved.forEach(([o, m]) => o.material = m); drop.forEach(([par, c]) => par.add(c));
     const b64 = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result.split(',')[1]); fr.readAsDataURL(new Blob([glb])); });
-    return { b64, data: { id: P.id, name: P.name, fps: 30, frames: N, K, anim, cam, texts, callouts, beats: P.beats, ttracks, lights, mats, exposure: S.exposure ?? .9 } };
+    return { b64, data: { id: P.id, name: P.name, fps: 30, frames: N, K, anim, cam, texts, callouts, beats: P.beats, ttracks, lights, mats, matKind, exposure: S.exposure ?? .9 } };
   }, [idx, FULL]);
   fs.mkdirSync(out, { recursive: true });
   fs.writeFileSync(`${out}/scene.glb`, Buffer.from(res.b64, 'base64'));
