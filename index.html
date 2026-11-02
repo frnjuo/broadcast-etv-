@@ -1845,7 +1845,6 @@ function buildVerdict() {
   const SW = 8.8, SD = 4.0, TH = 1.6, SH = .74, TZ = .3, SZ = -1.05, I = V(cardC.x, Y0 + .062, cardC.z + 1.5);
   const imprint = new THREE.Mesh(PL, new THREE.MeshStandardMaterial({ map: imprintTex('ВЕРДИКТ', 'ОБЗОРЫ ИГР', SW - .3, SD - .3, TH, SH, TZ, SZ), transparent: true, opacity: 0, roughness: .55, emissive: 0x2a0f6a, emissiveIntensity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }));
   imprint.rotation.x = -Math.PI / 2; imprint.scale.set(SW - .3, SD - .3, 1); imprint.position.copy(I).y += .004; imprint.name = 'Оттиск'; S.scene.add(imprint);
-  [['ВЕРДИКТ', TH, 180, TZ], ['ОБЗОРЫ ИГР', SH, 120, SZ]].forEach(([str, h, px, z]) => { const g = new THREE.Group(); g.position.set(I.x, I.y + .01, I.z - z); g.userData.text = { s: str, h, px, depth: 0 }; g.userData.visFrom = imprint; S.scene.add(g); });
   // табло оценки, геймпад на кабеле, монитор, коробка с игрой, штемпельная подушка, штамп
   const B = makeScoreBoard(); B.g.position.copy(boardC); B.g.name = 'Табло оценки'; S.scene.add(B.g);
   const pad = makePad(), PG = new THREE.Group(); PG.add(pad.g); pad.g.rotation.x = -Math.PI / 2; pad.g.position.y = .37; PG.scale.setScalar(1.45); PG.position.set(2.8, Y0, 4.35); PG.rotation.y = .25; PG.name = 'Геймпад'; S.scene.add(PG); PG.updateMatrixWorld(true);
@@ -2194,6 +2193,73 @@ function buildBumper() {
   };
 }
 
+/* =========================================================
+   5. ЛОГОТИП · 5 с — знак Е как цельный объект: анодированный циан на лицевой стороне, полированный алюминий по бокам и фаске
+   По канавке в глянцевом полу бежит импульс → полоса загрузки под знаком заполняется → за знаком включается подсветка,
+   по фаске скользит блик → загорается гравировка «ИГРОВОЙ КАНАЛ».
+   ========================================================= */
+function buildLogo() {
+  const S = makeStageP({ exposure: 1.15, fill: .18 }); S.key.intensity = 1.45; S.rimK = .1; S.neonCol = C.cyan;
+  S.rimB.color.set(0x9fdcff); // контровые без фиолетового: на металле они давали цветные пятна; ключевой свет мягче — пол остаётся тёмным
+  S.scene.background = new THREE.Color(0x06080c); S.scene.fog = new THREE.Fog(0x06080c, 26, 60);
+  const SC = 3.2, DEP = .3, BV = .03, logo = new THREE.Group(); logo.name = 'Знак Е'; S.scene.add(logo);
+  const geo = new THREE.ExtrudeGeometry(logoShape(), { depth: DEP, bevelEnabled: true, bevelThickness: BV, bevelSize: .022, bevelSegments: 5, curveSegments: 48 });
+  geo.scale(SC, SC, SC); geo.computeBoundingBox(); const bb = geo.boundingBox; geo.translate(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2); geo.computeVertexNormals();
+  const W = bb.max.x - bb.min.x, H = bb.max.y - bb.min.y, D = bb.max.z - bb.min.z;
+  const anod = new THREE.MeshPhysicalMaterial({ name: 'Анодированный циан', color: 0x08a9c9, metalness: .92, roughness: .3, anisotropy: .6, clearcoat: .35, clearcoatRoughness: .25, envMapIntensity: 1.25 });
+  const polish = new THREE.MeshPhysicalMaterial({ name: 'Полированный алюминий', color: 0xe3e9f0, metalness: 1, roughness: .2, envMapIntensity: 1.35 });
+  const E3 = new THREE.Mesh(geo, [anod, polish]); E3.name = 'Е'; E3.castShadow = E3.receiveShadow = true; logo.add(E3);
+  // глянцевый пол: полупрозрачный графит над зеркальной копией сцены (отражение без лишнего прохода рендера)
+  const floorM = new THREE.MeshPhysicalMaterial({ name: 'Глянцевый графит', color: 0x06080c, roughness: .5, metalness: .2, clearcoat: .45, clearcoatRoughness: .3, transparent: true, opacity: .8, envMapIntensity: .2 });
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(120, 80), floorM); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; floor.name = 'Пол'; S.scene.add(floor);
+  const mirror = new THREE.Group(); mirror.scale.y = -1; mirror.userData.noExport = true; S.scene.add(mirror);
+  const mE = new THREE.Mesh(geo, [anod, polish]); mirror.add(mE);
+  // задняя стена и ореол подсветки за знаком
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(120, 40), new THREE.MeshStandardMaterial({ name: 'Стена', color: 0x080a0f, roughness: .95 })); wall.position.set(0, 20, -9); wall.name = 'Стена'; S.scene.add(wall);
+  const haloT = cnv(512, 256, q => { const g = q.createRadialGradient(256, 210, 10, 256, 210, 260); g.addColorStop(0, 'rgba(0,217,255,.75)'); g.addColorStop(.35, 'rgba(0,217,255,.2)'); g.addColorStop(1, 'rgba(0,217,255,0)'); q.fillStyle = g; q.fillRect(0, 0, 512, 256); });
+  const halo = new THREE.Mesh(new THREE.PlaneGeometry(26, 13), new THREE.MeshBasicMaterial({ name: 'Ореол', map: haloT, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })); halo.position.set(0, 5.6, -8.9); halo.name = 'Ореол'; S.scene.add(halo);
+  // подсветка низко и далеко за знаком: светит в стену и на кромки, не бликует на верхних гранях
+  const back = new THREE.PointLight(C.cyan, 0, 9, 2); back.position.set(0, 1.4, -5.6); back.name = 'Подсветка'; S.scene.add(back);
+  // канавка в полу перед знаком: алюминиевая кромка, тёмное дно, деления полосы загрузки под знаком
+  const GZ = D / 2 + 1.0, GX0 = -18, GX1 = W / 2 + .3;
+  const groove = new THREE.Group(); groove.name = 'Канавка'; S.scene.add(groove);
+  meshTo(groove, new THREE.BoxGeometry(GX1 - GX0, .02, .36), PM.aluDark, [(GX0 + GX1) / 2, .01, GZ]);
+  meshTo(groove, new THREE.BoxGeometry(GX1 - GX0 - .04, .02, .24), PM.hole, [(GX0 + GX1) / 2, .012, GZ]);
+  const NS = 12, sx0 = -W / 2, sw = W / NS;
+  const glowM = lit(C.cyan, 2.6); glowM.name = 'Свет циан';
+  const segOn = Array.from({ length: NS }, (_, i) => { const m = new THREE.Mesh(new RoundedBoxGeometry(sw - .07, .03, .17, 2, .012), glowM); m.position.set(sx0 + sw * (i + .5), .03, GZ); m.scale.setScalar(.0001); m.name = 'Деление ' + (i + 1); S.scene.add(m); return m; });
+  Array.from({ length: NS }, (_, i) => meshTo(groove, new RoundedBoxGeometry(sw - .07, .02, .17, 2, .01), PM.graphite2, [sx0 + sw * (i + .5), .022, GZ]));
+  const spark = new THREE.Mesh(new THREE.CapsuleGeometry(.07, .9, 4, 12), glowM); spark.rotation.z = Math.PI / 2; spark.position.set(GX0, .05, GZ); spark.name = 'Импульс'; S.scene.add(spark);
+  // гравировка «ИГРОВОЙ КАНАЛ»: видна с начала тёмной, в конце загорается циановым
+  const tagT = { s: 'ИГРОВОЙ КАНАЛ', font: `600 120px ${MONO}`, h: .8, layers: 1, skew: 0, track: 22, noShadow: true };
+  const T0 = makeText([{ s: tagT.s, c: '#3a4352' }], tagT); T0.g.position.set(0, .006, GZ + 1.25); S.scene.add(T0.g); T0.show(1);
+  const T1 = makeText([{ s: tagT.s, c: '#7fe9ff' }], tagT); T1.g.position.set(0, .009, GZ + 1.25); S.scene.add(T1.g);
+  // скользящий блик по фаске
+  const sweep = new THREE.PointLight(0xf2f8ff, 0, 7, 2); sweep.name = 'Блик'; S.scene.add(sweep);
+  const C0 = V(0, H / 2, 0), pulseX = t => lerp(-14.5, sx0, sine(seg(t, .0, 1.15)));
+  const cam = shots(S, [
+    // 1. низкий проезд вдоль канавки: импульс бежит к знаку, за ним — размытая нижняя перекладина Е
+    { t0: 0, t1: 1.75, fn: (k, t) => { const x = Math.max(-13.5, Math.min(pulseX(t) - 1.6, -3.6 - 1.2 * (1 - k))); return [[x, .62, GZ + 2.6], [x + 3.2, .25, GZ - .2]]; }, fov: [30, 30], fp: t => [Math.min(pulseX(t), sx0) + .4, .05, GZ], ap: .02, third: [.3, .4] },
+    // 2. облёт справа: видно толщину знака, полированные стенки и фаску; включается подсветка, по фаске идёт блик
+    { t0: 1.75, t1: 3.2, fn: orb(C0.toArray(), [10.5, 9.6], [.6, 1.4], [62, 30], [0, -.2, 0]), fov: [32, 32], fp: C0.toArray(), ap: .008, third: [-.5, 0] },
+    // 3. мягкий подъём и наезд на финальный ракурс 3/4: знак, отражение, канавка и гравировка
+    { t0: 3.2, t1: 5, fn: orb(V(0, H / 2 - .4, 1.2).toArray(), [15.2, 14.0], [2.9, 3.6], [24, 16]), fov: [30, 30], fp: C0.toArray(), ap: .004, third: [0, -.25] },
+  ]);
+  return {
+    S, dur: 5, overlay: '',
+    exportFull: true,
+    update(t) {
+      spark.position.x = pulseX(t); spark.visible = t < 1.25; spark.scale.setScalar(t < 1.15 ? 1 : Math.max(.0001, 1 - seg(t, 1.15, 1.25)));
+      segOn.forEach((m, i) => { const k = E.outCubic(seg(t, 1.15 + i * .055, 1.3 + i * .055)); m.scale.setScalar(Math.max(.0001, k)); });
+      const pw = glide(seg(t, 1.95, 2.6)); halo.material.opacity = .45 * pw; back.intensity = 7 * pw;
+      const sk = seg(t, 2.05, 3.0); sweep.position.set(lerp(-W / 2 - 1.5, W / 2 + 1.5, sine(sk)), lerp(H + .6, H * .3, sk), D / 2 + 1.1); sweep.intensity = 6 * Math.sin(Math.PI * sk);
+      T1.show(glide(seg(t, 3.25, 3.9)));
+      cam(t);
+    },
+    ov() { },
+  };
+}
+
 /* ---------- pieces & UI ---------- */
 const PIECES = [
   { id: 'ident', name: 'Заставка канала', build: buildIdent, accent: '#00D9FF', dur: 15,
@@ -2216,6 +2282,11 @@ const PIECES = [
     text: ['Знак Е вырезан фрезой в толстой пластине из тёмного анодированного металла. Кромки выреза сняты алмазной фаской и блестят светлым алюминием, на дне лежит вставка из матового стекла с подсветкой. Над пластиной проходит блик и скользит по фаске, по стеклу бежит световой импульс.', 'Три плана: макро вдоль верхней перекладины знака, импульс идёт навстречу камере; блик по плоскости пластины и нижней дуге знака; отъезд с креном на общий план, знак загорается целиком. В углу постоянно стоит логотип канала, внизу слева плашка «РЕКЛАМА».'],
     meta: [['Хронометраж', '5 с · 150 кадров'], ['Камера', '3 плана: макро фаски, блик по пластине, отъезд с креном на общий план'], ['Звук', 'Металлический звон блика, мягкий проход импульса, короткий низкий акцент на полном знаке']],
     beats: [[0, 'Макро: фаска и импульс'], [1.5, 'Блик по пластине'], [2.6, 'Отъезд с креном'], [2.75, 'Знак загорается целиком']] },
+  { id: 'logo', name: 'Логотип', build: buildLogo, accent: '#00D9FF', dur: 5,
+    pal: [['#08A9C9', 'Анодированный циан'], ['#E3E9F0', 'Полированный алюминий'], ['#0B0E14', 'Глянцевый графит'], ['#00D9FF', 'Свет, загрузка']],
+    text: ['Знак Е — цельный объёмный объект: лицевая сторона из анодированного металла фирменного цианового цвета, боковые стенки и фаска — полированный алюминий. Знак стоит на тёмном глянцевом полу и отражается в нём. По канавке в полу бежит световой импульс и заполняет полосу загрузки под знаком.', 'Полоса заполнена — за знаком включается подсветка, на задней стене появляется ореол, по полированной фаске скользит блик. Камера облетает знак, показывая его толщину, и плавно поднимается на финальный ракурс 3/4. Гравировка «ИГРОВОЙ КАНАЛ» в полу загорается циановым.'],
+    meta: [['Хронометраж', '5 с · 150 кадров'], ['Камера', '3 плана с мягкими переходами: низкий проезд вдоль канавки за импульсом, облёт знака справа, подъём и наезд на финальный ракурс 3/4'], ['Звук', 'Тихий гул, бегущий импульс, щелчки делений загрузки, мягкий «вдох» подсветки, металлический звон блика']],
+    beats: [[0, 'Импульс бежит по канавке'], [1.15, 'Полоса загрузки заполняется'], [1.95, 'Подсветка за знаком'], [2.05, 'Блик по фаске'], [3.25, '«ИГРОВОЙ КАНАЛ» загорается']] },
 ];
 const $ = id => document.getElementById(id);
 const ov = $('ov'), scrub = $('scrub'), playBtn = $('play');
@@ -2277,7 +2348,7 @@ await Promise.race([
 
 let start = 0;
 const hi = PIECES.findIndex(p => p.id === location.hash.slice(1));
-if (hi >= 0) start = hi; else { try { const s = +localStorage.getItem('etv-tab'); if (s >= 0 && s < 4) start = s; } catch (e) { } }
+if (hi >= 0) start = hi; else { try { const s = +localStorage.getItem('etv-tab'); if (s >= 0 && s < PIECES.length) start = s; } catch (e) { } }
 select(start, false);
 resize();
 $('loading').hidden = true;

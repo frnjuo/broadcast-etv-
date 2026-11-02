@@ -3,7 +3,7 @@
 # blender -b -P build_blend.py -- <папка с scene.glb и anim.json> <out.blend> <шрифт титров> <шрифт сносок>
 # (или python build_blend.py ... с модулем bpy; нужен Blender 4.4+)
 import bpy, json, sys, math
-from mathutils import Quaternion, Vector
+from mathutils import Quaternion, Vector, Matrix
 
 args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else sys.argv[1:]
 src, out, font_title, font_mono = args[:4]
@@ -81,6 +81,74 @@ for t in D['texts']:
     cu.size = t['h'] * t['px'] / 260; cu.extrude = t['depth'] / 2
     cu.font = fT if t['px'] >= 150 else fM
     ob = bpy.data.objects.new(f"Текст {t['s']}"[:60], cu); sc.collection.objects.link(ob); ob.parent = par; ob.color = (.08, .09, .11, 1)
+
+# надписи с экранов, табло, бланков и табличек: текстовые объекты того же шрифта и размера, на тех же местах
+TCOL = {'d': (.12, .13, .15, 1), 'c': (0, .62, .78, 1), 'v': (.36, .18, .86, 1)}
+AX = {'start': 'LEFT', 'left': 'LEFT', 'center': 'CENTER', 'right': 'RIGHT', 'end': 'RIGHT'}
+AY = {'middle': 'CENTER', 'alphabetic': 'BOTTOM_BASELINE', 'top': 'TOP', 'hanging': 'TOP', 'bottom': 'BOTTOM', 'ideographic': 'BOTTOM'}
+# символы, которых нет в подмножествах шрифтов (▸ и т. п.), набираются запасным шрифтом, как это делает браузер
+import os
+FALLBACK = '/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf'
+try:
+    from fontTools.ttLib import TTFont as _TT
+    _FI = {}
+    def finfo(path):
+        if path not in _FI: f = _TT(path); _FI[path] = (f.getBestCmap(), f['hmtx'].metrics, f['head'].unitsPerEm)
+        return _FI[path]
+except Exception:
+    finfo = None
+fFB = bpy.data.fonts.load(FALLBACK) if os.path.exists(FALLBACK) else None
+def runs_of(text, path):
+    if not finfo or not fFB: return [(text, False)]
+    cm = finfo(path)[0]; out = []
+    for ch in text:
+        fb = ord(ch) not in cm and ord(ch) in finfo(FALLBACK)[0]
+        if out and out[-1][1] == fb: out[-1] = (out[-1][0] + ch, fb)
+        else: out.append((ch, fb))
+    return out
+def _w(body, font, size, space):
+    cu = bpy.data.curves.new('_измер', type='FONT'); cu.body = body; cu.font = font; cu.size = size; cu.space_character = space
+    ob = bpy.data.objects.new('_измер', cu); sc.collection.objects.link(ob); bpy.context.view_layer.update(); w = ob.dimensions.x
+    bpy.data.objects.remove(ob); bpy.data.curves.remove(cu); return w
+def adv(text, font, size, space):
+    # ширина набора в самом Blender: строка с концевым знаком минус ширина знака — так учитываются пробелы в конце
+    return _w(text + 'Ш', font, size, space) - _w('Ш', font, size, space)
+if D.get('ttracks'):
+    colL = bpy.data.collections.new('Надписи'); sc.collection.children.link(colL)
+    def pose(fr, shift=0.0):
+        x, y = Vector(loc(*fr[3:6])), Vector(loc(*fr[6:9]))
+        sc_ = fr[9] * (1.0 if fr[10] > .5 else 0.0)
+        return Vector(loc(*fr[0:3])) + x * shift * fr[9], Matrix((x, y, x.cross(y))).transposed().to_quaternion(), sc_
+    for t in D['ttracks']:
+        path = font_title if t['font'] == 'T' else font_mono
+        rs = runs_of(t['s'], path); sp = max(.5, t['space'])
+        mk = lambda body, fb, nm: (lambda cu: (setattr(cu, 'body', body), setattr(cu, 'font', fFB if fb else (fT if t['font'] == 'T' else fM)), setattr(cu, 'size', t['size']), setattr(cu, 'space_character', sp), setattr(cu, 'align_y', AY.get(t['base'], 'BOTTOM_BASELINE')), cu)[-1])(bpy.data.curves.new(nm, type='FONT'))
+        shift = 0.0
+        if len(rs) == 1:
+            cu = mk(t['s'], rs[0][1], f"Надпись {t['s'][:30]}"); cu.align_x = AX.get(t['align'], 'LEFT')
+            ob = bpy.data.objects.new(f"Надпись {t['s'][:40]}", cu)
+        else:
+            ws = [adv(r, fFB if fb else (fT if t['font'] == 'T' else fM), t['size'], sp) for r, fb in rs]; tot = sum(ws)
+            shift = {'CENTER': -tot / 2, 'RIGHT': -tot}.get(AX.get(t['align'], 'LEFT'), 0.0)
+            cu = mk(rs[0][0], rs[0][1], f"Надпись {t['s'][:30]}"); cu.align_x = 'LEFT'
+            ob = bpy.data.objects.new(f"Надпись {t['s'][:40]}", cu); x0 = ws[0]
+            for (r, fb), w in zip(rs[1:], ws[1:]):
+                ch = bpy.data.objects.new(f"Надпись {t['s'][:30]} · {r}", mk(r, fb, f"Надпись {r}")); ch.data.align_x = 'LEFT'
+                colL.objects.link(ch); ch.parent = ob; ch.location = (x0, 0, 0); ch.color = TCOL[t['col']]; x0 += w
+        colL.objects.link(ob); ob.color = TCOL[t['col']]; ob.rotation_mode = 'QUATERNION'
+        if t['still']:
+            p, q, sc_ = pose(t['fr'][0], shift); ob.location = p; ob.rotation_quaternion = q; ob.scale = (sc_,) * 3
+            continue
+        vals, prev = [], None
+        for fr in t['fr']:
+            p, q, sc_ = pose(fr, shift)
+            if prev is not None and prev.dot(q) < 0: q.negate()
+            vals.append((p, q, sc_)); prev = q
+        cbt = bag(ob, f'{ob.name}: движение')
+        for i in range(3): put(cbt, 'location', i, [v[0][i] for v in vals], LIN)
+        for i in range(4): put(cbt, 'rotation_quaternion', i, [v[1][i] for v in vals], LIN)
+        for i in range(3): put(cbt, 'scale', i, [v[2] for v in vals], CONST)
+    print('labels', len(D['ttracks']))
 
 # камера: покадровые ключи, склейки — постоянная интерполяция
 cd = bpy.data.cameras.new('Камера'); cd.sensor_fit = 'VERTICAL'; cd.sensor_height = 24; cd.clip_start = .1; cd.clip_end = 300
