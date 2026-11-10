@@ -235,5 +235,6 @@ for scr in bpy.data.screens:
             for sp in ar.spaces:
                 if sp.type == 'VIEW_3D': sp.shading.type = 'MATERIAL'; sp.region_3d.view_perspective = 'CAMERA'
 sc.frame_set(1)
+bpy.ops.file.pack_all()   # шрифты и текстуры внутри файла
 bpy.ops.wm.save_as_mainfile(filepath=out, compress=True)
 print('saved', out, 'objects', len(bpy.data.objects), 'lights', len([o for o in bpy.data.objects if o.type == 'LIGHT']))

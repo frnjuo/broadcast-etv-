@@ -1095,9 +1095,9 @@ function makeConsole(o = {}) {
   // знак Е вытравлен в стекле: матовый, при загрузке подсвечивается изнутри
   const eS = o.eS ?? 2.3, eX = o.eX ?? -1.6;
   const eGeo = flatShapeGeo([logoShapeAt(eS)], top + .002, 24);
-  const etch = new THREE.Mesh(eGeo, new THREE.MeshStandardMaterial({ color: 0x1a2130, roughness: .62, metalness: .1, envMapIntensity: .6 })); etch.position.x = eX; g.add(etch);
+  const etch = new THREE.Mesh(eGeo, new THREE.MeshStandardMaterial({ color: 0x1a2130, roughness: .62, metalness: .1, envMapIntensity: .6 })); etch.position.x = eX; etch.name = 'Знак Е'; g.add(etch);
   const sweep = new THREE.Plane(new THREE.Vector3(-1, 0, 0), -99);
-  const eLit = new THREE.Mesh(eGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(C.cyan), toneMapped: false, clippingPlanes: [sweep], polygonOffset: true, polygonOffsetFactor: -1 })); eLit.position.set(eX, .001, 0); g.add(eLit);
+  const eLit = new THREE.Mesh(eGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(C.cyan), toneMapped: false, clippingPlanes: [sweep], polygonOffset: true, polygonOffsetFactor: -1 })); eLit.position.set(eX, .001, 0); eLit.userData.noExport = true; g.add(eLit); // подсветка знака: в аниматике знак один — «Знак Е»
   const haloT = cnv(512, 360, q => { q.filter = 'blur(18px)'; q.fillStyle = 'rgba(0,217,255,.9)'; q.translate(256, 180); q.scale(250, 250); q.translate(-.8, 0); const P = new Path2D(); LOGO_PTS.forEach((p, i) => i ? P.lineTo(p.x, -p.y) : P.moveTo(p.x, -p.y)); P.closePath(); q.fill(P); });
   const halo = new THREE.Mesh(PL, new THREE.MeshBasicMaterial({ map: haloT, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending })); halo.rotation.x = -Math.PI / 2; halo.scale.set(eS * 512 / 250, eS * 360 / 250, 1); halo.position.set(eX, top + .004, 0); g.add(halo);
   // щелевой слот картриджа с алюминиевыми губами и мягким светом внутри
@@ -1684,8 +1684,8 @@ function makeScoreBoard() {
     const sh = new THREE.Mesh(PL, new THREE.MeshBasicMaterial({ map: cnv(8, 128, q => { const gr = q.createLinearGradient(0, 0, 0, 128); gr.addColorStop(0, 'rgba(0,0,0,.95)'); gr.addColorStop(.3, 'rgba(0,0,0,0)'); gr.addColorStop(.7, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,.95)'); q.fillStyle = gr; q.fillRect(0, 0, 8, 128); }), transparent: true, depthWrite: false })); sh.rotation.x = -Math.PI / 2; sh.scale.set(.95, 1.18, 1); sh.position.set(x, .01, 0); win.add(sh);
     return { tx, m };
   });
-  const comma = new THREE.Mesh(new THREE.CircleGeometry(.09, 24), new THREE.MeshBasicMaterial({ color: 0xd8e0ea, toneMapped: false })); comma.rotation.x = -Math.PI / 2; comma.position.set(0, .012, .42); win.add(comma);
-  const tail = new THREE.Mesh(new THREE.PlaneGeometry(.06, .2), comma.material); tail.rotation.set(-Math.PI / 2, 0, -.5); tail.position.set(-.04, .012, .55); win.add(tail);
+  const comma = new THREE.Mesh(new THREE.CircleGeometry(.09, 24), new THREE.MeshBasicMaterial({ color: 0xd8e0ea, toneMapped: false })); comma.rotation.x = -Math.PI / 2; comma.position.set(0, .012, .42); comma.name = 'Запятая'; win.add(comma);
+  const tail = new THREE.Mesh(new THREE.PlaneGeometry(.06, .2), comma.material); tail.rotation.set(-Math.PI / 2, 0, -.5); tail.position.set(-.04, .012, .55); tail.name = 'Запятая · хвост'; win.add(tail);
   return {
     g, rows, W, D, y,
     // заполнение строки: n — сколько делений горит (дробное — деление «наливается»), drop — гаснущее деление (0…1)

@@ -8,17 +8,38 @@ const fs = require('fs');
   const p = await b.newPage({ viewport: { width: 640, height: 560 } }); p.setDefaultTimeout(1800000);
   p.on('pageerror', e => console.log('PAGEERR', e.message));
   p.on('console', m => { if (m.type() === 'error') console.log('CONSOLE', m.text()); });
-  // запись всех надписей, которые рисуются на текстурах: строка, шрифт, позиция, выравнивание, цвет, трансформация; tag — кадр выгрузки
+  // запись всего, что рисуется на текстурах и в кадре: надписи (строка, шрифт, ширина и базовая линия по измерению браузера,
+  // выравнивание, межбуквенный интервал, трансформация) и знак Е (контур Path2D); tag — кадр выгрузки
   await p.addInitScript(() => {
-    const of = CanvasRenderingContext2D.prototype.fillText;
-    CanvasRenderingContext2D.prototype.fillText = function (s, x, y, mw) {
-      const c = this.canvas, t = this.getTransform();
-      (c.__tx || (c.__tx = [])).push({ s: String(s), x, y, font: this.font, align: this.textAlign, base: this.textBaseline, fill: typeof this.fillStyle === 'string' ? this.fillStyle : '#cccccc', ls: parseFloat(this.letterSpacing || '0') || 0, ga: this.globalAlpha, m: [t.a, t.b, t.c, t.d, t.e, t.f], tag: window.__ftag });
+    const C2 = CanvasRenderingContext2D.prototype, of = C2.fillText;
+    C2.fillText = function (s, x, y, mw) {
+      const c = this.canvas, t = this.getTransform(), mm = this.measureText(String(s));
+      (c.__tx || (c.__tx = [])).push({ s: String(s), x, y, mw: mw === undefined ? null : mw, w: mm.width, ab: mm.alphabeticBaseline, font: this.font, align: this.textAlign, base: this.textBaseline, dir: this.direction, fill: typeof this.fillStyle === 'string' ? this.fillStyle : '#cccccc', ls: parseFloat(this.letterSpacing || '0') || 0, ga: this.globalAlpha, blur: /blur/.test(this.filter || ''), m: [t.a, t.b, t.c, t.d, t.e, t.f], tag: window.__ftag });
       return of.call(this, s, x, y, mw);
     };
+    // контур знака: Path2D запоминает точки; на fill/stroke проверяется, что это знак Е (то же число точек и пропорция, что у LOGO_D)
+    const P2 = Path2D.prototype;
+    for (const k of ['moveTo', 'lineTo']) { const o = P2[k]; P2[k] = function (x, y) { (this.__p || (this.__p = [])).push(x, y); return o.call(this, x, y); }; }
+    let NL = 0;
+    const logoN = () => { if (NL) return NL; const pe = document.querySelector('.logo-svg path'); const d = pe && pe.getAttribute('d'); if (d && d.length > 20) NL = (d.match(/[ML]/g) || []).length; return NL; };
+    const isLogo = P => {
+      const a = P && P.__p; if (!a || a.length < 60) return null; const n = logoN(); if (n && a.length / 2 !== n) return null;
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (let i = 0; i < a.length; i += 2) { x0 = Math.min(x0, a[i]); x1 = Math.max(x1, a[i]); y0 = Math.min(y0, a[i + 1]); y1 = Math.max(y1, a[i + 1]); }
+      const r = (x1 - x0) / (y1 - y0); return r > 1.4 && r < 1.5 ? [x0, y0, x1, y1] : null;
+    };
+    for (const k of ['fill', 'stroke']) {
+      const o = C2[k];
+      C2[k] = function (...args) {
+        const P = args[0] instanceof Path2D ? args[0] : null, bb = P && isLogo(P);
+        if (bb && !/blur/.test(this.filter || '')) { const c = this.canvas, t = this.getTransform(); (c.__tx || (c.__tx = [])).push({ logo: k, s: '', bb, pts: P.__p, lw: this.lineWidth, fill: String(k === 'fill' ? this.fillStyle : this.strokeStyle), ga: this.globalAlpha, m: [t.a, t.b, t.c, t.d, t.e, t.f], tag: window.__ftag }); }
+        return o.apply(this, args);
+      };
+    }
   });
   await p.goto('file://' + require('path').resolve(__dirname, '../../index.html'));
   await p.waitForFunction(() => window.__etv, null, { timeout: 600000 });
+  await p.addStyleTag({ content: '#stage{position:fixed!important;left:0;top:0;width:1600px!important;height:900px!important;max-width:none!important;border:0!important;z-index:999}' });
+  await p.evaluate(() => document.fonts.ready);
   const res = await p.evaluate(async ([i, FULL]) => {
     const T = window.__etv.THREE; window.__etv.seek(i, 0);
     const P = window.__etv.pieces[i], inst = P.inst, S = inst.S, N = Math.round(inst.dur * 30);
@@ -56,43 +77,136 @@ const fs = require('fs');
       if (!tex || !['PlaneGeometry', 'CircleGeometry'].includes(o.geometry.type)) return;
       o.geometry.computeBoundingBox(); hosts.push({ o, tex, bb: o.geometry.boundingBox, cv: tex.image });
     });
-    const tracks = new Map(), TK = 11;
+    const tracks = new Map();
     const colOf = f => { let r = 200, g = 200, b = 200; const m = f.match(/#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i), n = f.match(/rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)/); if (m) [r, g, b] = [1, 2, 3].map(k => parseInt(m[k], 16)); else if (n) [r, g, b] = [1, 2, 3].map(k => +n[k]); return g > 150 && b > 180 && r < 120 ? 'c' : b > g + 40 && r > g ? 'v' : 'd'; };
+    const fontKey = f => /Unbounded/.test(f) ? 'T' : /JetBrains|monospace/.test(f) ? 'M' : 'I';
     const hostVis = o => { for (let q = o; q; q = q.parent) { if (!q.visible) return false; if (Math.abs(q.scale.x * q.scale.y * q.scale.z) < 1e-6) return false; } const m = o.material; if (m.transparent && m.opacity < .05) return false; if (m.isMeshBasicMaterial && m.color.r + m.color.g + m.color.b < .06) return false; return true; };
+    let logoOutline = null;
+    // одна запись холста → положение на носителе: M — матрица «геометрия носителя → мир» (или → локально в группе титра)
+    // точка — левый край первой буквы на базовой линии (для знака — центр), оси: xa — вдоль строки, ya — вверх по строке, nz — нормаль
+    const place = (c, cv, tex, bb, M, ci) => {
+      tex.updateMatrix(); const inv = tex.matrix.clone().invert(), cw = cv.width, ch = cv.height;
+      const L = (u, v) => new T.Vector3(bb.min.x + u * (bb.max.x - bb.min.x), bb.min.y + v * (bb.max.y - bb.min.y), 0);
+      const [a, b, cc, d, e, f] = c.m, sx = Math.hypot(a, b), sy = Math.hypot(cc, d);
+      let X0, Y0, rec = {};
+      if (c.logo) {
+        const cx = (c.bb[0] + c.bb[2]) / 2, cy = (c.bb[1] + c.bb[3]) / 2; X0 = a * cx + cc * cy + e; Y0 = b * cx + d * cy + f;
+        if (!logoOutline) { const h = c.bb[3] - c.bb[1], o = []; for (let i = 0; i < c.pts.length; i += 2) o.push([+((c.pts[i] - cx) / h).toFixed(5), +(-(c.pts[i + 1] - cy) / h).toFixed(5)]); logoOutline = o; }
+      } else {
+        const wv = c.mw !== null && c.w > c.mw ? c.mw : c.w, rtl = c.dir === 'rtl';
+        const al = c.align === 'center' ? -.5 : (c.align === 'right' || (c.align === 'end' && !rtl) || (c.align === 'start' && rtl)) ? -1 : 0;
+        const xL = c.x + al * wv, yB = c.y - c.ab; X0 = a * xL + cc * yB + e; Y0 = b * xL + d * yB + f;
+      }
+      let uv = null;
+      for (const k of (tex.wrapT === T.RepeatWrapping ? [0, -1, 1] : [0])) { const q = new T.Vector3(X0 / cw, 1 - Y0 / ch + k, 1).applyMatrix3(inv); if (q.x > -.02 && q.x < 1.02 && q.y > -.02 && q.y < 1.02) { uv = q; break; } }
+      if (!uv) return null;
+      const O = L(0, 0).applyMatrix4(M);
+      const wV = L(0, 0).add(new T.Vector3(0, (bb.max.y - bb.min.y) / ch / tex.repeat.y, 0)).applyMatrix4(M).distanceTo(O);   // мир на 1 px холста по вертикали
+      const wH = L(0, 0).add(new T.Vector3((bb.max.x - bb.min.x) / cw / tex.repeat.x, 0, 0)).applyMatrix4(M).distanceTo(O);   // и по горизонтали
+      const ax = L(1, 0).applyMatrix4(M).sub(O).normalize(), ay = L(0, 1).applyMatrix4(M).sub(O).normalize(), nz = ax.clone().cross(ay).normalize();
+      const xa = ax.clone().multiplyScalar(a * wH).addScaledVector(ay, -b * wV).normalize(), ya = nz.clone().cross(xa).normalize();
+      const P0 = L(uv.x, uv.y).applyMatrix4(M);
+      // наклон букв (курсив титров): проекция «вверх по строке» на направление строки
+      const ux = -cc * wH, uy = d * wV, ex = a * wH, ey = -b * wV, el = Math.hypot(ex, ey), along = (ux * ex + uy * ey) / el, perp = Math.abs(ux * ey - uy * ex) / el;
+      rec = { P0, xa, ya, nz, wH, wV, shear: perp > 1e-9 ? along / perp : 0, sxr: (sx * wH) / Math.max(1e-9, sy * wV) };
+      if (c.logo) { rec.h = (c.bb[3] - c.bb[1]) * sy * wV; rec.lw = c.logo === 'stroke' ? c.lw * sy * wV : 0; }
+      else { const px = +((c.font.match(/([\d.]+)px/) || [0, 20])[1]); rec.px = px; rec.em = px * sy * wV; rec.wem = c.w / px; rec.lsem = c.ls / px; rec.cond = c.mw !== null && c.w > c.mw ? c.mw / c.w : 1; }
+      return rec;
+    };
     const textFrame = f => {
       const seen = new Set(); S.scene.updateMatrixWorld(true);
       hosts.forEach((h, hi) => {
-        const all = h.cv.__tx, dyn = all.some(c => c.tag !== undefined), calls = dyn ? all.filter(c => c.tag === f) : all;
+        const all = h.cv.__tx, dyn = all.some(c => c.tag !== undefined), calls = (dyn ? all.filter(c => c.tag === f) : all).filter(c => !c.blur);
         if (!calls.length) return;
-        const vis0 = hostVis(h.o); h.o.updateMatrixWorld(); h.tex.updateMatrix(); const inv = h.tex.matrix.clone().invert(), cw = h.cv.width, ch = h.cv.height, bb = h.bb, W = h.o.matrixWorld;
-        const L = (u, v) => new T.Vector3(bb.min.x + u * (bb.max.x - bb.min.x), bb.min.y + v * (bb.max.y - bb.min.y), 0);
+        const vis0 = hostVis(h.o); h.o.updateMatrixWorld();
         calls.forEach((c, ci) => {
-          if (!c.s.trim()) return;
-          const key = `${hi}|${c.s}|${c.font}|${c.align}|${c.base}|${dyn ? '' : ci}`;
-          const X = c.m[0] * c.x + c.m[2] * c.y + c.m[4], Y = c.m[1] * c.x + c.m[3] * c.y + c.m[5];
-          let uv = null;
-          for (const k of (h.tex.wrapT === T.RepeatWrapping ? [0, -1, 1] : [0])) { const q = new T.Vector3(X / cw, 1 - Y / ch + k, 1).applyMatrix3(inv); if (q.x > -.02 && q.x < 1.02 && q.y > -.02 && q.y < 1.02) { uv = q; break; } }
-          const px = +((c.font.match(/([\d.]+)px/) || [0, 20])[1]), sy = Math.hypot(c.m[2], c.m[3]);
-          const P0 = uv ? L(uv.x, uv.y).applyMatrix4(W) : new T.Vector3();
-          const vUnit = new T.Vector3(0, (bb.max.y - bb.min.y) / ch / h.tex.repeat.y, 0), size = uv ? L(0, 0).add(vUnit).applyMatrix4(W).distanceTo(L(0, 0).applyMatrix4(W)) * px * sy : 0;
-          const ax = L(1, 0).applyMatrix4(W).sub(L(0, 0).applyMatrix4(W)).normalize(), ay = L(0, 1).applyMatrix4(W).sub(L(0, 0).applyMatrix4(W)).normalize(), nz = ax.clone().cross(ay).normalize();
-          const th = -Math.atan2(c.m[1], c.m[0]); const xa = ax.clone().multiplyScalar(Math.cos(th)).addScaledVector(ay, Math.sin(th)), ya = nz.clone().cross(xa).normalize();
-          P0.addScaledVector(nz, .013); // над носителем и его тонкими накладками (тени барабанов счётчика и т. п.)
+          if (!c.logo && !c.s.trim()) return;
+          const key = c.logo ? `${hi}|логотип|${dyn ? '' : ci}` : `${hi}|${c.s}|${c.font}|${c.align}|${c.base}|${dyn ? '' : ci}`;
+          const r = place(c, h.cv, h.tex, h.bb, h.o.matrixWorld, ci);
           let tr = tracks.get(key);
-          if (!tr) { tr = { s: c.s, font: /Unbounded/.test(c.font) ? 'T' : 'M', size: size || 0, align: c.align, base: c.base, space: 1 + c.ls / Math.max(1, .65 * px), col: colOf(c.fill), f0: f, fr: [] }; tracks.set(key, tr); }
-          if (!tr.size && size) tr.size = size;
-          const vis = uv && vis0 && c.ga > .3 ? 1 : 0;
-          tr.fr[f] = [P0.x, P0.y, P0.z, xa.x, xa.y, xa.z, ya.x, ya.y, ya.z, tr.size ? size / tr.size : 1, vis].map(v => Math.round(v * 1e4) / 1e4);
+          if (!r) { if (tr) tr.fr[f] = null; return; }
+          r.P0.addScaledVector(r.nz, .013); // над носителем и его тонкими накладками (тени барабанов счётчика и т. п.)
+          if (!tr) {
+            tr = c.logo ? { type: 'logo', mode: c.logo, size: r.h, lw: r.lw / r.h, sx: r.sxr, col: colOf(c.fill), fr: [] }
+              : { s: c.s, font: fontKey(c.font), size: r.em, wem: r.wem, lsem: r.lsem, shear: r.shear, sx: r.cond * r.sxr, col: colOf(c.fill), fr: [] };
+            tracks.set(key, tr);
+          }
+          const sz = c.logo ? r.h : r.em, vis = vis0 && c.ga > .3 ? 1 : 0;
+          tr.fr[f] = [r.P0.x, r.P0.y, r.P0.z, r.xa.x, r.xa.y, r.xa.z, r.ya.x, r.ya.y, r.ya.z, tr.size ? sz / tr.size : 1, vis].map(v => Math.round(v * 1e5) / 1e5);
           seen.add(key);
         });
       });
       tracks.forEach((tr, key) => { if (!seen.has(key)) tr.fr[f] = null; });
     };
+    // титры: надписи с холста лицевого слоя — в координатах группы титра (группа движется анимацией)
+    const titles = [];
+    texts.forEach(tx => {
+      const g = S.scene.getObjectByName(tx.name); if (!g) return;
+      const faces = g.children.filter(m => m.isMesh && m.material && m.material.map && m.material.map.image && m.material.map.image.__tx);
+      if (!faces.length) return;
+      const top = faces.reduce((p, q) => q.position.y > p.position.y ? q : p); top.updateMatrix(); top.geometry.computeBoundingBox();
+      const parts = [];
+      top.material.map.image.__tx.filter(c => !c.blur && !c.logo && c.s.trim()).forEach((c, ci) => {
+        const r = place(c, top.material.map.image, top.material.map, top.geometry.boundingBox, top.matrix, ci); if (!r) return;
+        parts.push({ s: c.s, font: fontKey(c.font), em: r.em, wem: r.wem, lsem: r.lsem, shear: r.shear, sx: r.cond * r.sxr, col: colOf(c.fill), P: r.P0.toArray(), xa: r.xa.toArray(), ya: r.ya.toArray() });
+      });
+      titles.push({ name: tx.name, depth: tx.depth, parts });
+    });
+    // наложения поверх кадра (знак канала, плашка, сноски): раскладка DOM по кадрам, в единицах ширины кадра от центра, y вверх
+    const ovEl = document.getElementById('ov'), stEl = document.getElementById('stage'), els = {};
+    ovEl.querySelectorAll('[data-k]').forEach(e => els[e.dataset.k] = e);
+    const mc = document.createElement('canvas').getContext('2d'), ovt = new Map(), ovs = new Map();
+    const idOf = el => { const a = []; for (let e = el; e && e !== ovEl; e = e.parentElement) a.push((e.dataset && e.dataset.k) || `${(e.getAttribute('class') || e.tagName).split(' ')[0]}${[...e.parentElement.children].indexOf(e)}`); return a.reverse().join('/'); };
+    const opOf = el => { let op = 1; for (let e = el; e && e !== ovEl.parentElement; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === 'none' || cs.visibility === 'hidden') return 0; op *= parseFloat(cs.opacity); } return op; };
+    const clipOf = el => {
+      let R = null;
+      for (let e = el; e && e !== ovEl; e = e.parentElement) {
+        const cp = getComputedStyle(e).clipPath; if (!cp || !cp.startsWith('inset(')) continue;
+        const bx = e.getBoundingClientRect(), tk = cp.slice(6, cp.indexOf(')')).trim().split(/\s+/).map((v, i) => v.endsWith('%') ? parseFloat(v) / 100 * (i % 2 ? bx.width : bx.height) : parseFloat(v));
+        const [t, r = t, b = t, l = r] = tk, rr = [bx.left + l, bx.top + t, bx.right - r, bx.bottom - b];
+        R = R ? [Math.max(R[0], rr[0]), Math.max(R[1], rr[1]), Math.min(R[2], rr[2]), Math.min(R[3], rr[3])] : rr;
+      }
+      return R;
+    };
+    const inCard = el => { for (let e = el; e && e !== ovEl; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.backgroundImage !== 'none' || (cs.backgroundColor && !/rgba\(0, 0, 0, 0\)|transparent/.test(cs.backgroundColor))) return true; } return false; };
+    const ovFrame = f => {
+      const st = stEl.getBoundingClientRect(), W = st.width, H = st.height, X = px => (px - st.left) / W - .5, Y = py => (st.top + H / 2 - py) / W;
+      const seen = new Set();
+      const set = (map, key, init, row) => { let tr = map.get(key); if (!tr) { tr = { ...init(), fr: [] }; map.set(key, tr); } tr.fr[f] = row; seen.add(key); };
+      // надписи: каждый текстовый узел — своя дорожка (строка входит в ключ: печать по буквам даёт по объекту на каждую длину)
+      const tw = document.createTreeWalker(ovEl, NodeFilter.SHOW_TEXT);
+      for (let n = tw.nextNode(); n; n = tw.nextNode()) {
+        const el = n.parentElement, cs = getComputedStyle(el); let s = n.textContent; if (!s.trim() || el.closest('style')) continue;
+        if (cs.textTransform === 'uppercase') s = s.toUpperCase();
+        const rg = document.createRange(); rg.selectNodeContents(n); const r = rg.getBoundingClientRect(); if (!r.width) continue;
+        let vis = opOf(el) > .3 ? 1 : 0; const cl = clipOf(el); if (vis && cl) vis = (Math.min(r.right, cl[2]) - Math.max(r.left, cl[0])) / r.width >= .5 ? 1 : 0;
+        const fs = parseFloat(cs.fontSize); mc.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`; const base = r.top + mc.measureText(s).fontBoundingBoxAscent;
+        set(ovt, `${idOf(el)}|${s}`, () => ({ s, font: fontKey(cs.fontFamily), weight: +cs.fontWeight, em: fs / W, wem: r.width / fs, lsem: cs.letterSpacing === 'normal' ? 0 : parseFloat(cs.letterSpacing) / fs, col: colOf(cs.color), card: inCard(el) }), [X(r.left), Y(base), vis].map(v => Math.round(v * 1e5) / 1e5));
+      }
+      // знак канала в углу (SVG с контуром LOGO_D)
+      ovEl.querySelectorAll('svg.logo-svg path').forEach(pe => { const r = pe.getBoundingClientRect(); set(ovs, 'логотип|' + idOf(pe), () => ({ type: 'logo', col: colOf(getComputedStyle(pe).fill === 'none' ? getComputedStyle(pe).stroke : getComputedStyle(pe.closest('svg')).color) }), [X(r.left + r.width / 2), Y(r.top + r.height / 2), r.height / W, r.height > 0 && opOf(pe) > .3 ? 1 : 0].map(v => Math.round(v * 1e5) / 1e5)); });
+      // плашки с рамкой или фоном (карточки сносок, рамка номера, полоска)
+      ovEl.querySelectorAll('*').forEach(el => {
+        if (el.closest('svg') || el.tagName === 'STYLE') return; const cs = getComputedStyle(el), bw = parseFloat(cs.borderTopWidth) || 0, bg = cs.backgroundImage !== 'none' || !/rgba\(0, 0, 0, 0\)|transparent/.test(cs.backgroundColor);
+        if (!bw && !bg) return; const r = el.getBoundingClientRect();
+        let vis = r.width > 0 && opOf(el) > .3 ? 1 : 0; const cl = clipOf(el); if (vis && cl) vis = (Math.min(r.right, cl[2]) - Math.max(r.left, cl[0])) / r.width >= .5 ? 1 : 0;
+        set(ovs, 'плашка|' + idOf(el), () => ({ type: 'rect', border: bw / W, bcol: colOf(cs.borderTopColor), fill: bg ? (cs.backgroundImage !== 'none' ? 'd' : colOf(cs.backgroundColor)) : null }), [X(r.left), Y(r.top), X(r.right), Y(r.bottom), vis].map(v => Math.round(v * 1e5) / 1e5));
+      });
+      // точки, кольца и выноски сносок (SVG)
+      ovEl.querySelectorAll('svg:not(.logo-svg) circle').forEach(ce => { const r = ce.getBoundingClientRect(), cs = getComputedStyle(ce), k = W / 1600; set(ovs, 'круг|' + idOf(ce), () => ({ type: 'circle', fillc: cs.fill !== 'none', sw: (parseFloat(cs.strokeWidth) || 0) * k / W, col: colOf(cs.fill !== 'none' ? cs.fill : cs.stroke) }), [X(r.left + r.width / 2), Y(r.top + r.height / 2), r.width / 2 / W, r.width > 0 && opOf(ce) > .15 ? 1 : 0].map(v => Math.round(v * 1e5) / 1e5)); });
+      ovEl.querySelectorAll('svg:not(.logo-svg) polyline').forEach(pl => {
+        const svg = pl.ownerSVGElement, M = svg.getScreenCTM(), cs = getComputedStyle(pl), raw = (pl.getAttribute('points') || '').trim();
+        const pts = raw ? raw.split(/\s+/).map(q => q.split(',').map(Number)).map(([x, y]) => { const p = svg.createSVGPoint(); p.x = x; p.y = y; const s2 = p.matrixTransform(M); return [X(s2.x), Y(s2.y)]; }) : [];
+        const L = parseFloat(pl.style.strokeDasharray) || 0, off = parseFloat(pl.style.strokeDashoffset) || 0, frac = L ? Math.max(0, Math.min(1, 1 - off / L)) : 1;
+        set(ovs, 'выноска|' + idOf(pl), () => ({ type: 'line', n: 3, sw: (parseFloat(cs.strokeWidth) || 0) * (W / 1600) / W, col: colOf(cs.stroke) }), [...(pts.length === 3 ? pts.flat() : [0, 0, 0, 0, 0, 0]), frac, pts.length === 3 && opOf(pl) > .3 && frac > .001 ? 1 : 0].map(v => Math.round(v * 1e5) / 1e5));
+      });
+      ovt.forEach((tr, key) => { if (!seen.has(key)) tr.fr[f] = null; }); ovs.forEach((tr, key) => { if (!seen.has(key)) tr.fr[f] = null; });
+    };
     const K = 11, rec = nodes.map(() => null), first = new Float32Array(nodes.length * K), cam = [], callouts = [], lights = {}, mats = {}, matKind = {};
     const snap = (o, a, off) => { a[off] = o.position.x; a[off + 1] = o.position.y; a[off + 2] = o.position.z; a[off + 3] = o.quaternion.x; a[off + 4] = o.quaternion.y; a[off + 5] = o.quaternion.z; a[off + 6] = o.quaternion.w; a[off + 7] = o.scale.x; a[off + 8] = o.scale.y; a[off + 9] = o.scale.z; a[off + 10] = effVis(o); };
     const tmp = new Float32Array(K);
     for (let f = 0; f < N; f++) {
-      const t = f / 30; window.__ftag = f; inst.update(t); textFrame(f);
+      const t = f / 30; window.__ftag = f; inst.update(t); inst.ov(t, els); textFrame(f); ovFrame(f);
       nodes.forEach((o, j) => {
         if (f === 0) { snap(o, first, j * K); return; }
         snap(o, tmp, 0);
@@ -120,12 +234,15 @@ const fs = require('fs');
     }
     const anim = {}; nodes.forEach((o, j) => { if (rec[j]) anim[o.name] = Array.from(rec[j], v => Math.round(v * 1e5) / 1e5); });
     // дорожки надписей: если положение и видимость не меняются — хранится один кадр
-    const ttracks = [...tracks.values()].filter(tr => tr.size > 0).map(tr => {
-      const fr = Array.from({ length: N }, (_, f) => tr.fr[f] || null), last = fr.find(x => x);
-      const full = fr.map(x => x || [...last.slice(0, 10), 0]);
-      const still = full.every(x => x.every((v, k) => Math.abs(v - full[0][k]) < 1e-4));
-      return { s: tr.s, font: tr.font, size: Math.round(tr.size * 1e4) / 1e4, align: tr.align, base: tr.base, space: Math.round(tr.space * 1e3) / 1e3, col: tr.col, still, fr: still ? [full[0]] : full };
-    });
+    const pack = (tr, keys) => { const fr = Array.from({ length: N }, (_, f) => tr.fr[f] || null), last = fr.find(x => x); if (!last) return null;
+      const full = fr.map(x => x || [...last.slice(0, last.length - 1), 0]); const still = full.every(x => x.every((v, k) => Math.abs(v - full[0][k]) < 1e-4));
+      const o = {}; keys.forEach(k => { if (tr[k] !== undefined) o[k] = tr[k]; }); o.still = still; o.fr = still ? [full[0]] : full; return o; };
+    const ttracks = [...tracks.values()].filter(tr => tr.size > 0).map(tr => pack(tr, ['type', 'mode', 's', 'font', 'size', 'wem', 'lsem', 'shear', 'sx', 'lw', 'col'])).filter(Boolean);
+    const overlay = { texts: [...ovt.values()].map(tr => pack(tr, ['s', 'font', 'weight', 'em', 'wem', 'lsem', 'col', 'card'])).filter(Boolean), shapes: [...ovs.values()].map(tr => pack(tr, ['type', 'border', 'bcol', 'fill', 'fillc', 'sw', 'col', 'n'])).filter(Boolean) };
+    // отображение кадра: соотношение сторон и шрифты, которыми браузер набирал наложения
+    const aspect = stEl.getBoundingClientRect().width / stEl.getBoundingClientRect().height;
+    // контур знака, если на текстурах его не было: из SVG знака канала (тот же LOGO_D)
+    if (!logoOutline) { const pe = document.querySelector('.logo-svg path'), d = pe && pe.getAttribute('d'); if (d) { const P = d.replace(/[MLZ]/g, ' ').trim().split(/\s+/).map(q => q.split(',').map(Number)); let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; P.forEach(([x, y]) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }); const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, h = y1 - y0; logoOutline = P.map(([x, y]) => [+((x - cx) / h).toFixed(5), +(-(y - cy) / h).toFixed(5)]); } }
     // геометрия без материалов в положении первого кадра
     inst.update(0);
     drop.forEach(([par, c]) => par.remove(c));
@@ -134,7 +251,7 @@ const fs = require('fs');
     const glb = await new GLTFExporter().parseAsync(S.scene, { binary: true, onlyVisible: false });
     saved.forEach(([o, m]) => o.material = m); drop.forEach(([par, c]) => par.add(c));
     const b64 = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result.split(',')[1]); fr.readAsDataURL(new Blob([glb])); });
-    return { b64, data: { id: P.id, name: P.name, fps: 30, frames: N, K, anim, cam, texts, callouts, beats: P.beats, ttracks, lights, mats, matKind, exposure: S.exposure ?? .9 } };
+    return { b64, data: { id: P.id, name: P.name, fps: 30, frames: N, K, anim, cam, texts, titles, callouts, beats: P.beats, ttracks, overlay, logo: logoOutline, aspect, lights, mats, matKind, exposure: S.exposure ?? .9 } };
   }, [idx, FULL]);
   fs.mkdirSync(out, { recursive: true });
   fs.writeFileSync(`${out}/scene.glb`, Buffer.from(res.b64, 'base64'));
