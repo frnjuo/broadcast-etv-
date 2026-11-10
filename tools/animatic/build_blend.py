@@ -2,7 +2,7 @@
 # маркеры монтажного листа; все надписи — текстовыми объектами того же шрифта и размера, что в ролике; знак канала — плоской фигурой;
 # наложения поверх кадра (знак в углу, плашка, сноски) — объектами, привязанными к камере. Шрифты упаковываются в файл.
 # blender -b -P build_blend.py -- <папка с scene.glb и anim.json> <out.blend> <Unbounded ExtraBold> <JetBrains Mono SemiBold> [Inter SemiBold]
-# (или python build_blend.py ... с модулем bpy; нужен Blender 4.4+)
+# (или python build_blend.py ... с модулем bpy; Blender 4.2 LTS и новее)
 import bpy, json, sys, math
 from mathutils import Quaternion, Vector, Matrix
 
@@ -35,13 +35,17 @@ def quat_node(x, y, z, w): return (w, x, -z, y)
 def scl(x, y, z): return (x, z, y)
 
 def bag(id_data, name):
-    """Слой действия Blender 4.4+/5.x: action → слот → слой → полоса → набор каналов."""
+    """Куда писать ключи. Blender 4.4+: действие → слот → слой → полоса → набор каналов; 4.2–4.3: каналы прямо в действии.
+    Файл собирается в 4.2 LTS и открывается в 4.2, 4.5 и 5.x (более новые версии переводят анимацию в слоты сами)."""
     ad = id_data.animation_data_create()
     act = bpy.data.actions.new(name)
-    slot = act.slots.new(id_type=id_data.id_type, name=id_data.name)
-    strip = act.layers.new('Слой').strips.new(type='KEYFRAME')
-    ad.action = act; ad.action_slot = slot
-    return strip.channelbag(slot, ensure=True)
+    if hasattr(act, 'layers') and hasattr(act, 'slots'):
+        slot = act.slots.new(id_type=id_data.id_type, name=id_data.name)
+        strip = act.layers.new('Слой').strips.new(type='KEYFRAME')
+        ad.action = act; ad.action_slot = slot
+        return strip.channelbag(slot, ensure=True)
+    ad.action = act
+    return act
 
 def put(cb, path, index, values, interp):
     fc = cb.fcurves.new(path, index=index)
