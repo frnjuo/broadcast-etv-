@@ -297,6 +297,13 @@ if OV['texts'] or OV['shapes']:
 for ob in bpy.data.objects:
     if ob.type in ('MESH', 'CURVE') and tuple(ob.color) == (1, 1, 1, 1):
         ob.color = (.74, .74, .74, 1)
+# фон темнее предметов, как в ролике: стены, галерея ниш, полка с играми, циклорама — второй план
+BG = ('Стена из реек', 'Галерея гаджетов', 'Полка с играми', 'Циклорама', 'Стена')
+for ob in bpy.data.objects:
+    if ob.type != 'MESH': continue
+    q = ob
+    while q is not None and not q.name.split('.')[0].startswith(BG): q = q.parent
+    if q is not None: ob.color = (.5, .51, .53, 1)
 w = bpy.data.worlds.new('Фон'); w.color = (.5, .51, .53); sc.world = w
 
 # вид: Workbench, студийный свет вьюпорта; 3D-вид смотрит через камеру
