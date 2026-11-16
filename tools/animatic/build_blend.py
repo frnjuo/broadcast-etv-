@@ -1,14 +1,18 @@
-# Сборка аниматика в Blender: геометрия без материалов и света, покадровая анимация, камера со склейками,
-# маркеры монтажного листа; все надписи — текстовыми объектами того же шрифта и размера, что в ролике; знак канала — плоской фигурой;
-# наложения поверх кадра (знак в углу, плашка, сноски) — объектами, привязанными к камере. Шрифты упаковываются в файл.
-# blender -b -P build_blend.py -- <папка с scene.glb и anim.json> <out.blend> <Unbounded ExtraBold> <JetBrains Mono SemiBold> [Inter SemiBold]
+# Сборка сцены ролика в Blender.
+# Аниматик: геометрия без материалов и света (Workbench). --full: материалы из ролика, свет, студийное окружение, туман, свечение, Cycles.
+# В обоих: редкие ключи предметов и камеры (камера смотрит на пустышку-цель, несколько ключей Безье на план, склейки — скачком),
+# «дыхание» камеры — модификатор шума; маркеры планов и событий; все надписи — текстовыми объектами того же шрифта и размера, что в ролике;
+# знак канала — плоской фигурой; наложения поверх кадра (знак в углу, плашка, сноски) — объектами, привязанными к камере. Шрифты упаковываются в файл.
+# blender -b -P build_blend.py -- <папка с scene.glb и anim.json> <out.blend> <Unbounded ExtraBold> <JetBrains Mono SemiBold> [Inter SemiBold] [--full]
 # (или python build_blend.py ... с модулем bpy; Blender 4.2 LTS и новее)
-import bpy, json, sys, math
+import bpy, json, sys, math, os
 from mathutils import Quaternion, Vector, Matrix
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import etvblend as EB
 
 args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else sys.argv[1:]
+FULL = '--full' in args; args = [a for a in args if a != '--full']
 src, out, font_title, font_mono = args[:4]
-import os
 font_body = args[4] if len(args) > 4 else next((p for p in (os.path.join(os.path.dirname(font_title), 'Inter-SemiBold.otf'), '/usr/share/fonts/opentype/inter/Inter-SemiBold.otf') if os.path.exists(p)), font_mono)
 D = json.load(open(f'{src}/anim.json'))
 N, K = D['frames'], D['K']
@@ -20,62 +24,21 @@ sc.render.fps = D['fps']; sc.frame_start = 1; sc.frame_end = N
 sc.render.resolution_x, sc.render.resolution_y = 1920, 1080
 bpy.ops.import_scene.gltf(filepath=f'{src}/scene.glb')
 
-# без материалов: серый «клей» Workbench
-for ob in bpy.data.objects:
-    if ob.type == 'MESH':
-        ob.data.materials.clear()
-for m in list(bpy.data.materials):
-    bpy.data.materials.remove(m)
-for im in list(bpy.data.images):
-    bpy.data.images.remove(im)
+# аниматик: без материалов, серый «клей» Workbench; полная сцена — материалы из ролика (их доводит full_scene.py)
+if not FULL:
+    for ob in bpy.data.objects:
+        if ob.type == 'MESH':
+            ob.data.materials.clear()
+    for m in list(bpy.data.materials):
+        bpy.data.materials.remove(m)
+    for im in list(bpy.data.images):
+        bpy.data.images.remove(im)
 
-QC = Quaternion((math.cos(math.pi / 4), math.sin(math.pi / 4), 0, 0))  # Y-вверх → Z-вверх
-def loc(x, y, z): return (x, -z, y)
-def quat_node(x, y, z, w): return (w, x, -z, y)
-def scl(x, y, z): return (x, z, y)
-
-def bag(id_data, name):
-    """Куда писать ключи. Blender 4.4+: действие → слот → слой → полоса → набор каналов; 4.2–4.3: каналы прямо в действии.
-    Файл собирается в 4.2 LTS и открывается в 4.2, 4.5 и 5.x (более новые версии переводят анимацию в слоты сами)."""
-    ad = id_data.animation_data_create()
-    act = bpy.data.actions.new(name)
-    if hasattr(act, 'layers') and hasattr(act, 'slots'):
-        slot = act.slots.new(id_type=id_data.id_type, name=id_data.name)
-        strip = act.layers.new('Слой').strips.new(type='KEYFRAME')
-        ad.action = act; ad.action_slot = slot
-        return strip.channelbag(slot, ensure=True)
-    ad.action = act
-    return act
-
-def put(cb, path, index, values, interp):
-    fc = cb.fcurves.new(path, index=index)
-    fc.keyframe_points.add(len(values))
-    co = [0.0] * (2 * len(values))
-    for f, v in enumerate(values):
-        co[2 * f] = f + 1; co[2 * f + 1] = v
-    fc.keyframe_points.foreach_set('co', co)
-    fc.keyframe_points.foreach_set('interpolation', [interp] * len(values))
-    fc.update()
-
+QC = EB.QC
+loc, quat_node, scl, bag, put = EB.loc, EB.quat_node, EB.scl, EB.bag, EB.put
 LIN, CONST = 1, 0
-missing = []
-for name, arr in D['anim'].items():
-    ob = bpy.data.objects.get(name)
-    if ob is None:
-        missing.append(name); continue
-    ob.rotation_mode = 'QUATERNION'
-    fr = [arr[f * K:(f + 1) * K] for f in range(N)]
-    cb = bag(ob, f'{name}: движение')
-    L = [loc(*r[0:3]) for r in fr]; Q = [quat_node(*r[3:7]) for r in fr]; Sv = [[c * (1 if r[10] > .5 else 0) for c in scl(*r[7:10])] for r in fr]
-    # каналы, которые не меняются, не ключуем
-    for path, data, n in (('location', L, 3), ('rotation_quaternion', Q, 4), ('scale', Sv, 3)):
-        for i in range(n):
-            vals = [d[i] for d in data]
-            if max(vals) - min(vals) > 1e-5:
-                put(cb, path, i, vals, LIN)
-            else:
-                setattr_val = getattr(ob, path); setattr_val[i] = vals[0]
-print('animated', len(D['anim']) - len(missing), 'missing', missing[:10])
+# предметы: редкие ключи Безье вместо покадровых; появление и исчезновение — скачком
+EB.sparse_objects(D, N, K)
 
 
 # ---------- шрифты ----------
@@ -155,6 +118,7 @@ for t in D.get('titles', []):
         B = basis(p['xa'], p['ya']); nz = B.col[2]
         for o in objs:
             if t['depth']: o.data.extrude = t['depth'] / 2
+            o['etv_col'] = p['col']
         link(objs, colT, DARK)
         ob.parent = par; ob.matrix_parent_inverse = Matrix.Identity(4); ob.rotation_mode = 'QUATERNION'
         ob.location = Vector(loc(*p['P'])) - nz * (t['depth'] / 2); ob.rotation_quaternion = B.to_quaternion(); ob.scale = (p['sx'], 1, 1)
@@ -174,7 +138,7 @@ def keyed(ob, frames, still, mk):
     for i in range(3): put(cbt, 'location', i, [v[0][i] for v in vals], LIN)
     for i in range(4): put(cbt, 'rotation_quaternion', i, [v[1][i] for v in vals], LIN)
     for i in range(3): put(cbt, 'scale', i, [v[2][i] for v in vals], CONST)
-if D.get('ttracks'):
+if D.get('ttracks') and not FULL:  # в полной сцене надписи уже на текстурах экранов и бланков
     colL = bpy.data.collections.new('Надписи'); sc.collection.children.link(colL)
     for t in D['ttracks']:
         if t.get('type') == 'logo':
@@ -193,31 +157,13 @@ if D.get('ttracks'):
 for ob in bpy.data.objects:
     if ob.name.startswith(('Знак Е', 'Запятая')) and ob.type == 'MESH': ob.color = DARK
 
-# камера: покадровые ключи, склейки — постоянная интерполяция
-cd = bpy.data.cameras.new('Камера'); cd.sensor_fit = 'VERTICAL'; cd.sensor_height = 24; cd.clip_start = .1; cd.clip_end = 300
-cam = bpy.data.objects.new('Камера', cd); sc.collection.objects.link(cam); sc.camera = cam; cam.rotation_mode = 'QUATERNION'
+# камера: смотрит на пустышку «Камера · цель»; несколько ключей Безье на план, склейки — скачком; «дыхание» — модификатор шума
+# (в аниматике глубина резкости выключена, ключи фокуса и диафрагмы есть — для полной сцены)
 C = D['cam']
-cb = bag(cam, 'Камера: монтаж')
-CL = [loc(*c[0:3]) for c in C]
-CQ = [tuple(QC @ Quaternion((c[6], c[3], c[4], c[5]))) for c in C]
-for i in range(3): put(cb, 'location', i, [v[i] for v in CL], CONST)
-for i in range(4): put(cb, 'rotation_quaternion', i, [v[i] for v in CQ], CONST)
-cdb = bag(cd, 'Камера: объектив')
-put(cdb, 'lens', 0, [12 / math.tan(math.radians(c[7]) / 2) for c in C], CONST)
-put(cdb, 'dof.focus_distance', 0, [c[8] for c in C], CONST)
-# смещение объектива: композиция по третям, как в ролике
-if any(len(c) > 9 and (c[9] or c[10]) for c in C):
-    put(cdb, 'shift_x', 0, [c[9] if len(c) > 9 else 0 for c in C], CONST)
-    put(cdb, 'shift_y', 0, [c[10] if len(c) > 9 else 0 for c in C], CONST)
-cd.dof.use_dof = False
-
-# маркеры: склейки планов и события монтажного листа
-# склейка — скачок камеры, заметно больший, чем движение в соседних кадрах
-step = [0] + [(Vector(C[f][0:3]) - Vector(C[f - 1][0:3])).length + abs(C[f][7] - C[f - 1][7]) * .2 for f in range(1, N)] + [0]
-cut = 1; sc.timeline_markers.new('План 1', frame=1)
-for f in range(1, N):
-    if step[f] > .25 and step[f] > 4 * max(step[f - 1], step[f + 1], .02):
-        cut += 1; sc.timeline_markers.new(f'План {cut}', frame=f + 1)
+colC = bpy.data.collections.new('Камера'); sc.collection.children.link(colC)
+cam, camTarget, SEGS = EB.camera_rig(sc, C, colC, noise=True, dof=True)
+cam.data.dof.use_dof = FULL
+# маркеры событий монтажного листа (маркеры планов ставит camera_rig)
 for t, label in D['beats']:
     sc.timeline_markers.new(label[:60], frame=int(round(t * 30)) + 1)
 
@@ -230,12 +176,16 @@ if OV['texts'] or OV['shapes']:
     colO = bpy.data.collections.new('Наложение'); sc.collection.children.link(colO)
     root = bpy.data.objects.new('Наложение', None); root.empty_display_type = 'PLAIN_AXES'; root.empty_display_size = .05; colO.objects.link(root); root.parent = cam
     d, asp = .5, D.get('aspect', 16 / 9)
-    Wv = [2 * d * math.tan(math.radians(c[7]) / 2) * asp for c in C]
-    cbr = bag(root, 'Наложение: кадр')
-    put(cbr, 'location', 0, [(c[9] if len(c) > 9 else 0) * w for c, w in zip(C, Wv)], CONST)
-    put(cbr, 'location', 1, [(c[10] if len(c) > 9 else 0) * w for c, w in zip(C, Wv)], CONST)
-    put(cbr, 'location', 2, [-d] * N, CONST)
-    for i in range(3): put(cbr, 'scale', i, Wv, CONST)
+    # масштаб и сдвиг — драйверами от объектива камеры: правка фокусного расстояния или смещения не сбивает графику
+    root.location.z = -d
+    def drv(path, idx, expr):
+        fc = root.driver_add(path, idx); dr = fc.driver; dr.type = 'SCRIPTED'
+        for vn, prop in (('lens', 'lens'), ('sx', 'shift_x'), ('sy', 'shift_y')):
+            v = dr.variables.new(); v.name = vn; v.type = 'SINGLE_PROP'; v.targets[0].id_type = 'CAMERA'; v.targets[0].id = cam.data; v.targets[0].data_path = prop
+        dr.expression = expr
+    Wexpr = f'{24 * d * asp:.6f} / lens'
+    for i in range(3): drv('scale', i, Wexpr)
+    drv('location', 0, f'sx * {Wexpr}'); drv('location', 1, f'sy * {Wexpr}')
     def full(t):
         return t['fr'] if not t['still'] else [t['fr'][0]] * N
     def keyloc(ob, name, F, xy, vis, sc_=lambda fr: 1.0, z=0.0):
@@ -293,6 +243,27 @@ if OV['texts'] or OV['shapes']:
             cbl = bag(cu, 'Выноска: прорисовка'); put(cbl, 'bevel_factor_end', 0, [fr[6] if fr[7] > .5 else 0.0 for fr in F], CONST)
     print('overlay', len(OV['texts']), len(OV['shapes']))
 
+if FULL:
+    # ---------- полная сцена: материалы, свет, окружение, туман, свечение, графика поверх кадра ----------
+    import full_scene as FS
+    colLt = bpy.data.collections.new('Свет'); sc.collection.children.link(colLt)
+    FS.materials(D); FS.tex_offsets(D); FS.dynamic_screens(D, src); FS.lights(sc, D, colLt)
+    sc.world = FS.studio_world(D.get('bg') or [.004, .005, .008]); FS.title_materials(D)
+    so = FS.overlay_scene(sc, bpy.data.collections.get('Наложение'), colC)
+    FS.render_settings(sc, D); FS.compositor(sc, D, so)
+    for scr in bpy.data.screens:
+        for ar in scr.areas:
+            if ar.type == 'VIEW_3D':
+                for sp in ar.spaces:
+                    if sp.type == 'VIEW_3D': sp.shading.type = 'MATERIAL'; sp.region_3d.view_perspective = 'CAMERA'
+    try: sc.render.image_settings.file_format = 'FFMPEG'; sc.render.ffmpeg.format = 'MPEG4'; sc.render.ffmpeg.codec = 'H264'; sc.render.ffmpeg.constant_rate_factor = 'HIGH'
+    except Exception as e: print('ffmpeg settings', e)
+    sc.render.filepath = f"//{D['id']}_"
+    sc.frame_set(1)
+    bpy.ops.file.pack_all()
+    bpy.ops.wm.save_as_mainfile(filepath=out, compress=True)
+    print('saved', out, 'objects', len(bpy.data.objects), 'markers', len(sc.timeline_markers))
+    sys.exit(0) if not hasattr(sys, 'ps1') else None
 # без материалов: у объектов только цвет вьюпорта — серая геометрия, тёмные титры, циановые сноски
 for ob in bpy.data.objects:
     if ob.type in ('MESH', 'CURVE') and tuple(ob.color) == (1, 1, 1, 1):

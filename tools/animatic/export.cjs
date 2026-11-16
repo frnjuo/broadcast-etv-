@@ -36,18 +36,22 @@ const fs = require('fs');
       };
     }
   });
+  if (process.env.ETV_ROUTES) await require(process.env.ETV_ROUTES).routes(p); // перехват запросов к CDN (офлайн-окружение)
   await p.goto('file://' + require('path').resolve(__dirname, '../../index.html'));
   await p.waitForFunction(() => window.__etv, null, { timeout: 600000 });
   await p.addStyleTag({ content: '#stage{position:fixed!important;left:0;top:0;width:1600px!important;height:900px!important;max-width:none!important;border:0!important;z-index:999}' });
   await p.evaluate(() => document.fonts.ready);
   const res = await p.evaluate(async ([i, FULL]) => {
     const T = window.__etv.THREE; window.__etv.seek(i, 0);
+    window.__noFloat = true; // камера без «дыхания»: в Blender его даёт модификатор шума поверх редких ключей
     const P = window.__etv.pieces[i], inst = P.inst, S = inst.S, N = Math.round(inst.dur * 30);
     const { GLTFExporter } = await import('three/addons/exporters/GLTFExporter.js');
     // свет и эффекты в аниматик не идут: спрайты, линии, аддитивные свечения, подсветки фона
     const targets = new Set(); S.scene.traverse(o => { if (o.isLight && o.target) targets.add(o.target); });
     // аниматик: без света и эффектов; full: свет пишется отдельно, светящиеся плоскости (ореол) остаются в сцене
     const isFX = o => o.userData.noExport || targets.has(o) || o.isSprite || o.isLine || o.isPoints || o.isLight || (!FULL && (o.userData.noAO || (o.isMesh && !Array.isArray(o.material) && o.material.isMeshBasicMaterial && o.material.blending === T.AdditiveBlending)));
+    // full: у каждого материала своё имя — по нему в Blender находятся его яркость и прозрачность по кадрам
+    if (FULL) { const seenM = new Set(), names = new Map(); let mi = 0; S.scene.traverse(o => { if (!o.isMesh) return; for (const m of (Array.isArray(o.material) ? o.material : [o.material])) { if (seenM.has(m)) continue; seenM.add(m); let n = (m.name || `Материал ${++mi}`).slice(0, 24); const c = (names.get(n) || 0) + 1; names.set(n, c); if (c > 1) n = `${n} ${c}`; m.name = n; } }); }
     const used = new Map(), uname = base => { base = base.slice(0, 26); const n = (used.get(base) || 0) + 1; used.set(base, n); return n === 1 ? base : `${base} ${n}`; };
     const nodes = [], texts = [], drop = [];
     const walk = (o, inText) => {
@@ -202,6 +206,7 @@ const fs = require('fs');
       });
       ovt.forEach((tr, key) => { if (!seen.has(key)) tr.fr[f] = null; }); ovs.forEach((tr, key) => { if (!seen.has(key)) tr.fr[f] = null; });
     };
+    const dynT = new Map(), pulses = {}, texOff = {}, lightKey = new Map();
     const K = 11, rec = nodes.map(() => null), first = new Float32Array(nodes.length * K), cam = [], callouts = [], lights = {}, mats = {}, matKind = {};
     const snap = (o, a, off) => { a[off] = o.position.x; a[off + 1] = o.position.y; a[off + 2] = o.position.z; a[off + 3] = o.quaternion.x; a[off + 4] = o.quaternion.y; a[off + 5] = o.quaternion.z; a[off + 6] = o.quaternion.w; a[off + 7] = o.scale.x; a[off + 8] = o.scale.y; a[off + 9] = o.scale.z; a[off + 10] = effVis(o); };
     const tmp = new Float32Array(K);
@@ -220,15 +225,27 @@ const fs = require('fs');
       S.cam.updateMatrixWorld();
       const cp = new T.Vector3(), cq = new T.Quaternion(), cs = new T.Vector3(); S.cam.matrixWorld.decompose(cp, cq, cs);
       const vw = S.cam.view && S.cam.view.enabled ? S.cam.view : null;
-      cam.push([cp.x, cp.y, cp.z, cq.x, cq.y, cq.z, cq.w, S.cam.fov, S.focus, vw ? vw.offsetX / vw.fullWidth : 0, vw ? -vw.offsetY / vw.fullWidth : 0, S.ap]);
+      // + точка, куда смотрит камера, верх кадра (локальная ось Y камеры в мире), сила «дыхания» и номер плана — для редких ключей в Blender
+      const up = new T.Vector3(0, 1, 0).applyQuaternion(cq), lk = S.camLook ? new T.Vector3(...S.camLook) : cp.clone().add(new T.Vector3(0, 0, -1).applyQuaternion(cq).multiplyScalar(S.focus || 10));
+      cam.push([cp.x, cp.y, cp.z, cq.x, cq.y, cq.z, cq.w, S.cam.fov, S.focus, vw ? vw.offsetX / vw.fullWidth : 0, vw ? -vw.offsetY / vw.fullWidth : 0, S.ap, lk.x, lk.y, lk.z, up.x, up.y, up.z, S.floatA ?? 0, S.shotId ?? 0]);
       if (FULL) {
         // свет по кадрам: положение, сила, цвет; у направленных — ещё точка, куда светят
         S.scene.traverse(o => { if (!o.isLight) return; o.updateMatrixWorld(); const w = new T.Vector3().setFromMatrixPosition(o.matrixWorld), tg = o.target ? new T.Vector3().setFromMatrixPosition(o.target.matrixWorld) : w;
-          const key = o.name || (o === S.key ? 'Ключевой' : o === S.fill ? 'Заполняющий' : o === S.rimA ? 'Контровой 1' : o === S.rimB ? 'Контровой 2' : o === S.hemi ? 'Небо' : 'Свет');
-          (lights[key] = lights[key] || { type: o.isDirectionalLight ? 'SUN' : o.isPointLight ? 'POINT' : o.isSpotLight ? 'SPOT' : 'HEMI', fr: [] }).fr.push([w.x, w.y, w.z, tg.x, tg.y, tg.z, o.intensity, o.color.r, o.color.g, o.color.b, o.distance || 0].map(v => Math.round(v * 1e4) / 1e4)); });
+          // у каждого источника своя дорожка: безымянные получают номер
+          let key = lightKey.get(o);
+          if (!key) { const b0 = o.name || (o === S.key ? 'Ключевой' : o === S.fill ? 'Заполняющий' : o === S.rimA ? 'Контровой 1' : o === S.rimB ? 'Контровой 2' : o === S.hemi ? 'Небо' : 'Свет'); key = b0; for (let n = 2; [...lightKey.values()].includes(key); n++) key = `${b0} ${n}`; lightKey.set(o, key); }
+          (lights[key] = lights[key] || { type: o.isDirectionalLight ? 'SUN' : o.isPointLight ? 'POINT' : o.isSpotLight ? 'SPOT' : 'HEMI', angle: o.angle ?? 0, penumbra: o.penumbra ?? 0, shadow: !!o.castShadow, ground: o.groundColor ? o.groundColor.toArray() : null, fr: [] }).fr.push([w.x, w.y, w.z, tg.x, tg.y, tg.z, o.intensity, o.color.r, o.color.g, o.color.b, o.distance || 0].map(v => Math.round(v * 1e4) / 1e4)); });
         // прозрачность и свечение именованных материалов (ореол и т. п.) и прозрачность титров
-        S.scene.traverse(o => { if (!o.isMesh || !o.material) return; for (const m of (Array.isArray(o.material) ? o.material : [o.material])) { if (!m.name) continue; matKind[m.name] = m.type; const a = (mats[m.name] = mats[m.name] || []); if (a.length < N && a.lastF !== f) { a.lastF = f; a.push([m.opacity, m.emissiveIntensity ?? 0, m.color ? m.color.r : 0, m.color ? m.color.g : 0, m.color ? m.color.b : 0].map(v => Math.round(v * 1e4) / 1e4)); } } });
+        S.scene.traverse(o => { if (!o.isMesh || !o.material) return; for (const m of (Array.isArray(o.material) ? o.material : [o.material])) { if (!m.name) continue; matKind[m.name] = m.type;
+          if (m.map && !m.userData.pulse) { const tt = (texOff[m.name] = texOff[m.name] || { fr: [] }); if (tt.fr.length < N && tt.lastF !== f) { tt.lastF = f; tt.fr.push([m.map.offset.x, m.map.offset.y, m.map.repeat.x, m.map.repeat.y].map(v => Math.round(v * 1e5) / 1e5)); } }
+          if (m.userData.pulse) { const U = m.userData.pulse, pa = (pulses[m.name] = pulses[m.name] || { len: U.uLen.value, col: U.uCol.value.toArray(), fr: [] }); if (pa.fr.length < N && pa.lastF !== f) { pa.lastF = f; pa.fr.push([+U.uHead.value.toFixed(5), +U.uRes.value.toFixed(5)]); } } const a = (mats[m.name] = mats[m.name] || []); if (a.length < N && a.lastF !== f) { a.lastF = f; a.push([m.opacity, m.emissiveIntensity ?? 0, m.color ? m.color.r : 0, m.color ? m.color.g : 0, m.color ? m.color.b : 0, m.emissive ? m.emissive.r : 0, m.emissive ? m.emissive.g : 0, m.emissive ? m.emissive.b : 0, m.blending === T.AdditiveBlending ? 1 : 0, m.map ? 1 : 0].map(v => Math.round(v * 1e4) / 1e4)); } } });
         texts.forEach(tx => { const g = S.scene.getObjectByName(tx.name); const ch = g && g.children.find(c => c.material); (tx.op = tx.op || []).push(ch ? Math.round(ch.material.opacity * 1e3) / 1e3 : 1); });
+        // холсты, которые перерисовываются по ходу ролика (экран монитора и т. п.): состояние в каждом кадре, одинаковые — один раз
+        if (f === 0) { dynT.clear(); S.scene.traverse(o => { if (!o.isMesh || Array.isArray(o.material)) return; const m = o.material, tx = m.map; if (tx && tx.isCanvasTexture && !dynT.has(tx)) dynT.set(tx, { mat: m.name, v0: tx.version, last: -1, imgs: [], keys: new Map(), idx: [] }); }); }
+        dynT.forEach((d, tx) => {
+          if (tx.version !== d.last) { d.last = tx.version; const u = tx.image.toDataURL('image/png'); if (!d.keys.has(u)) { d.keys.set(u, d.imgs.length); d.imgs.push(u); } d.cur = d.keys.get(u); }
+          d.idx.push(d.cur);
+        });
       }
       if (inst.exportCallouts) callouts.push(inst.exportCallouts(t));
     }
@@ -251,10 +268,14 @@ const fs = require('fs');
     const glb = await new GLTFExporter().parseAsync(S.scene, { binary: true, onlyVisible: false });
     saved.forEach(([o, m]) => o.material = m); drop.forEach(([par, c]) => par.add(c));
     const b64 = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result.split(',')[1]); fr.readAsDataURL(new Blob([glb])); });
-    return { b64, data: { id: P.id, name: P.name, fps: 30, frames: N, K, anim, cam, texts, titles, callouts, beats: P.beats, ttracks, overlay, logo: logoOutline, aspect, lights, mats, matKind, exposure: S.exposure ?? .9 } };
+    const dyn = [...dynT.values()].filter(d => d.imgs.length > 1).map(d => ({ mat: d.mat, imgs: d.imgs.map(u => u.split(',')[1]), idx: d.idx }));
+    const fog = S.scene.fog ? { color: S.scene.fog.color.toArray(), near: S.scene.fog.near, far: S.scene.fog.far } : null, bg = S.scene.background && S.scene.background.isColor ? S.scene.background.toArray() : null;
+    return { b64, data: { id: P.id, name: P.name, fps: 30, frames: N, K, anim, cam, texts, titles, callouts, beats: P.beats, ttracks, overlay, logo: logoOutline, aspect, lights, mats, matKind, exposure: S.exposure ?? .9, fog, bg, dyn, pulses, texOff: Object.fromEntries(Object.entries(texOff).filter(([k, v]) => v.fr.some(r => r.some((x, i) => Math.abs(x - v.fr[0][i]) > 1e-4))).map(([k, v]) => [k, v.fr])) } };
   }, [idx, FULL]);
   fs.mkdirSync(out, { recursive: true });
   fs.writeFileSync(`${out}/scene.glb`, Buffer.from(res.b64, 'base64'));
+  // меняющиеся холсты — отдельными картинками рядом с anim.json
+  (res.data.dyn || []).forEach((d, k) => { d.files = d.imgs.map((b, j) => { const fn = `dyn_${k}_${String(j).padStart(3, '0')}.png`; fs.writeFileSync(`${out}/${fn}`, Buffer.from(b, 'base64')); return fn; }); delete d.imgs; });
   fs.writeFileSync(`${out}/anim.json`, JSON.stringify(res.data));
   console.log('ok', res.data.id, 'animated nodes', Object.keys(res.data.anim).length, 'texts', res.data.texts.length, 'labels', res.data.ttracks.length, 'glb MB', (res.b64.length * .75 / 1e6).toFixed(1));
   await b.close();

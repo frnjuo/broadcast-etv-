@@ -2,6 +2,8 @@
 # blender -b -P build_logo_blend.py -- <папка с scene.glb и anim.json> <out.blend> <шрифт титров> <шрифт моно> [название сцены] [префикс рендера]
 import bpy, json, sys, math, os
 from mathutils import Quaternion, Vector, Matrix
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import etvblend as EB
 
 args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else sys.argv[1:]
 src, out, font_title, font_mono = args[:4]
@@ -19,16 +21,12 @@ def quat_node(x, y, z, w): return (w, x, -z, y)
 def scl(x, y, z): return (x, z, y)
 def lin(c): return tuple(((v + .055) / 1.055) ** 2.4 if v > .04045 else v / 12.92 for v in c)
 def hexc(h): return lin((((h >> 16) & 255) / 255, ((h >> 8) & 255) / 255, (h & 255) / 255))
-def bag(id_data, name):
-    ad = id_data.animation_data_create(); act = bpy.data.actions.new(name)
-    slot = act.slots.new(id_type=id_data.id_type, name=id_data.name)
-    strip = act.layers.new('Слой').strips.new(type='KEYFRAME'); ad.action = act; ad.action_slot = slot
-    return strip.channelbag(slot, ensure=True)
+bag = EB.bag
 def put(cb, path, index, values, interp=1):
-    fc = cb.fcurves.new(path, index=index); fc.keyframe_points.add(len(values))
-    co = [0.0] * (2 * len(values))
-    for f, v in enumerate(values): co[2 * f] = f + 1; co[2 * f + 1] = v
-    fc.keyframe_points.foreach_set('co', co); fc.keyframe_points.foreach_set('interpolation', [interp] * len(values)); fc.update()
+    # значения по кадрам → редкие ключи Безье (скачки — постоянной интерполяцией)
+    import numpy as np
+    v = np.asarray(values, dtype=float); segs = EB.segments_from_jumps(v[None], rel=8, abs_min=max(1e-3, .05 * (np.abs(v).max() + 1e-6)))
+    EB.sparse(cb, [(path, index, v, max(1e-3, .01 * float(np.abs(v).max())))], segs)
 def changing(vals): return max(vals) - min(vals) > 1e-5
 
 # ---------- материалы ----------
@@ -102,17 +100,7 @@ for m in glass:  # стекло поверх экрана: прозрачное 
             if slot.material == m: slot.material = g
 
 # ---------- анимация объектов ----------
-for name, arr in D['anim'].items():
-    ob = bpy.data.objects.get(name)
-    if ob is None: continue
-    ob.rotation_mode = 'QUATERNION'; fr = [arr[f * K:(f + 1) * K] for f in range(N)]
-    cb = bag(ob, f'{name}: движение')
-    L = [loc(*r[0:3]) for r in fr]; Q = [quat_node(*r[3:7]) for r in fr]; Sv = [[c * (1 if r[10] > .5 else 0) for c in scl(*r[7:10])] for r in fr]
-    for path, data, n in (('location', L, 3), ('rotation_quaternion', Q, 4), ('scale', Sv, 3)):
-        for i in range(n):
-            vals = [d[i] for d in data]
-            if changing(vals): put(cb, path, i, vals)
-            else: getattr(ob, path)[i] = vals[0]
+EB.sparse_objects(D, N, K)   # редкие ключи Безье вместо покадровых
 
 # ---------- надпись «ИГРОВОЙ КАНАЛ»: текстом, гравировка и свечение ----------
 fT = bpy.data.fonts.load(font_title); fM = bpy.data.fonts.load(font_mono)
@@ -187,45 +175,37 @@ def studio_world():
     Lk(mx.outputs[0], N_('ShaderNodeOutputWorld').inputs['Surface']); return w
 sc.world = studio_world()
 
-# ---------- камера: ключи на каждый кадр, склейки без интерполяции, глубина резкости ----------
-QC = Quaternion((math.cos(math.pi / 4), math.sin(math.pi / 4), 0, 0))
-cd = bpy.data.cameras.new('Камера'); cd.sensor_fit = 'VERTICAL'; cd.sensor_height = 24; cd.clip_start = .1; cd.clip_end = 300
-cam = bpy.data.objects.new('Камера', cd); sc.collection.objects.link(cam); sc.camera = cam; cam.rotation_mode = 'QUATERNION'
-C = D['cam']; cb = bag(cam, 'Камера: монтаж')
-for i in range(3): put(cb, 'location', i, [loc(*c[0:3])[i] for c in C], 0)
-CQ = [tuple(QC @ Quaternion((c[6], c[3], c[4], c[5]))) for c in C]
-for i in range(4): put(cb, 'rotation_quaternion', i, [q[i] for q in CQ], 0)
-cdb = bag(cd, 'Камера: объектив'); cd.dof.use_dof = True
-put(cdb, 'lens', 0, [12 / math.tan(math.radians(c[7]) / 2) for c in C], 0)
-put(cdb, 'dof.focus_distance', 0, [c[8] for c in C], 0)
-put(cdb, 'dof.aperture_fstop', 0, [max(1.4, min(22, .025 / max(1e-4, c[11]))) for c in C], 0)
-if any(c[9] or c[10] for c in C):
-    put(cdb, 'shift_x', 0, [c[9] for c in C], 0); put(cdb, 'shift_y', 0, [c[10] for c in C], 0)
-step = [0] + [(Vector(C[f][0:3]) - Vector(C[f - 1][0:3])).length for f in range(1, N)] + [0]
-cut = 1; sc.timeline_markers.new('План 1', frame=1)
-for f in range(1, N):
-    if step[f] > .25 and step[f] > 4 * max(step[f - 1], step[f + 1], .02): cut += 1; sc.timeline_markers.new(f'План {cut}', frame=f + 1)
+# ---------- камера: смотрит на пустышку-цель, несколько ключей Безье на план, глубина резкости ----------
+cam, camTarget, SEGS = EB.camera_rig(sc, D['cam'], sc.collection, noise=True, dof=True)
 for t, label in D['beats']: sc.timeline_markers.new(label[:60], frame=int(round(t * 30)) + 1)
 
 # ---------- рендер: Eevee, трассировка отражений, размытие в движении, свечение ----------
-sc.render.engine = 'BLENDER_EEVEE'; ee = sc.eevee
+try: sc.render.engine = 'BLENDER_EEVEE_NEXT'   # Blender 4.2–4.5; в 5.x тот же движок называется BLENDER_EEVEE
+except TypeError: sc.render.engine = 'BLENDER_EEVEE'
+ee = sc.eevee
 ee.taa_render_samples = 64; ee.use_raytracing = True
 try: ee.ray_tracing_options.resolution_scale = '1'
 except Exception: pass
 ee.use_shadows = True; sc.render.use_motion_blur = True; sc.render.motion_blur_shutter = .5
 sc.view_settings.view_transform = 'AgX'; sc.view_settings.look = 'AgX - Medium High Contrast'; sc.view_settings.exposure = math.log2(D.get('exposure', 1.15)) + .3
 try:
-    ng = bpy.data.node_groups.new('Свечение', 'CompositorNodeTree'); sc.compositing_node_group = ng
-    i_ = ng.nodes.new('CompositorNodeRLayers'); g_ = ng.nodes.new('CompositorNodeGlare'); o_ = ng.interface.new_socket('Image', in_out='OUTPUT', socket_type='NodeSocketColor') if hasattr(ng, 'interface') else None
-    go = ng.nodes.new('NodeGroupOutput')
+    if hasattr(sc, 'compositing_node_group'):   # Blender 5.x: композитор — группа узлов
+        ng = bpy.data.node_groups.new('Свечение', 'CompositorNodeTree'); sc.compositing_node_group = ng
+        ng.interface.new_socket('Image', in_out='OUTPUT', socket_type='NodeSocketColor'); go = ng.nodes.new('NodeGroupOutput')
+    else:                                        # Blender 4.x: дерево узлов сцены
+        sc.use_nodes = True; ng = sc.node_tree; ng.nodes.clear(); go = ng.nodes.new('CompositorNodeComposite')
+    i_ = ng.nodes.new('CompositorNodeRLayers'); g_ = ng.nodes.new('CompositorNodeGlare')
     if 'Type' in g_.inputs: g_.inputs['Type'].default_value = 'Bloom'   # Blender 5.x: тип свечения — вход узла
     else: g_.glare_type = 'BLOOM'
     for k_, v_ in (('Threshold', 1.0), ('Strength', .45), ('Size', .6)):
         if k_ in g_.inputs: g_.inputs[k_].default_value = v_
+    if 'Strength' not in g_.inputs:   # Blender 4.x: настройки свечения — свойства узла; доля свечения в кадре — mix
+        g_.threshold = 1.2; g_.size = 6; g_.mix = -.78
     ng.links.new(i_.outputs['Image'], g_.inputs['Image']); ng.links.new(g_.outputs['Image'], go.inputs[0])
 except Exception as e:
     print('compositor skipped:', e)
-sc.render.image_settings.media_type = 'VIDEO'
+try: sc.render.image_settings.media_type = 'VIDEO'
+except Exception: pass
 try: sc.render.image_settings.file_format = 'FFMPEG'; sc.render.ffmpeg.format = 'MPEG4'; sc.render.ffmpeg.codec = 'H264'
 except Exception as e: print('ffmpeg', e)
 sc.render.filepath = '//' + out_prefix

@@ -9,6 +9,7 @@ const { chromium } = require('playwright');
   const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const p = await b.newPage({ viewport: { width: 320, height: 380 } }); p.setDefaultTimeout(3600000);
   p.on('pageerror', e => console.log('PAGEERR', e.message));
+  if (process.env.ETV_ROUTES) await require(process.env.ETV_ROUTES).routes(p); // перехват запросов к CDN (офлайн-окружение)
   await p.goto('file://' + require('path').resolve(__dirname, '../index.html'));
   await p.waitForFunction(() => window.__etv, null, { timeout: 600000 });
   const out = await p.evaluate(([i, step]) => {
